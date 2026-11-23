@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThockScope</title>
+<meta name="description" content="See what your keyboard sounds like: a live frequency analyzer for custom mechanical keyboards.">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <h1 class="brand-title">ThockScope</h1>
+    <p class="brand-tagline" data-text="ui.tagline"></p>
+  </div>
+  <div class="controls" role="toolbar" aria-label="Audio controls">
+    <button id="btn-mic" class="btn btn-primary" type="button">Start Mic</button>
+    <label class="btn btn-file">Upload Recording
+      <input id="file-input" type="file" accept="audio/*,video/*" hidden>
+    </label>
+    <button id="btn-play" class="btn" type="button" hidden>Play</button>
+    <button id="btn-stop" class="btn" type="button" disabled>Stop</button>
+    <label class="sens">Sensitivity
+      <input id="sens" type="range" min="0" max="1" step="0.05" value="0.5">
+    </label>
+  </div>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+</header>
+
+<main class="app-main">
+  <section class="viz-grid" aria-label="Live visualizers">
+    <article class="panel panel-wave">
+      <h2 class="panel-title" data-text="ui.waveform"></h2>
+      <canvas id="cv-wave" class="viz" aria-label="Waveform"></canvas>
+      <p class="panel-note" data-lesson="sound"></p>
+    </article>
+
+    <article class="panel panel-spectrum">
+      <h2 class="panel-title" data-text="ui.spectrum"></h2>
+      <canvas id="cv-spectrum" class="viz viz-tall" aria-label="Frequency spectrum"></canvas>
+      <p class="panel-note" data-lesson="spectrum"></p>
+    </article>
+
+    <article class="panel panel-spectrogram">
+      <h2 class="panel-title" data-text="ui.spectrogram"></h2>
+      <canvas id="cv-spectrogram" class="viz" aria-label="Spectrogram"></canvas>
+      <p class="panel-note" data-lesson="spectrogram"></p>
+    </article>
+
+    <article class="panel panel-profile">
+      <h2 class="panel-title" data-text="ui.profile"></h2>
+      <div class="meter" aria-label="Thock to clack meter">
+        <span class="meter-end meter-left" data-text="ui.meterLeft"></span>
+        <div class="meter-track"><div id="meter-needle" class="meter-needle"></div></div>
+        <span class="meter-end meter-right" data-text="ui.meterRight"></span>
+      </div>
+      <p id="prof-name" class="profile-name">—</p>
+      <p id="prof-desc" class="profile-desc" data-text="ui.micHint"></p>
+      <dl class="stats">
+        <div><dt>Main pitch</dt><dd id="st-pitch">—</dd></div>
+        <div><dt>Brightness</dt><dd id="st-bright">—</dd></div>
+        <div><dt>Fade time</dt><dd id="st-decay">—</dd></div>
+        <div><dt>Keys heard</dt><dd id="st-count">0</dd></div>
+      </dl>
+      <canvas id="cv-hit" class="viz viz-small" aria-label="Shape of the last key press"></canvas>
+    </article>
+  </section>
+
+  <section id="file-panel" class="panel panel-file" hidden>
+    <h2 class="panel-title">Your recording: <span id="file-name"></span></h2>
+    <canvas id="cv-overview" class="viz viz-small" aria-label="Whole recording, with each detected key press marked"></canvas>
+    <p class="panel-note">Each red tick is a key press ThockScope found. Click the recording to play from there.</p>
+  </section>
+
+  <section class="panel panel-report" aria-labelledby="report-title">
+    <div class="report-head">
+      <h2 id="report-title" class="panel-title">Report card</h2>
+      <div class="report-actions">
+        <button id="btn-pin" class="btn btn-small" type="button">Save as "Before"</button>
+        <button id="btn-unpin" class="btn btn-small" type="button" hidden>Clear "Before"</button>
+        <button id="btn-reset" class="btn btn-small" type="button">Start over</button>
+      </div>
+    </div>
+    <div class="report-body">
+      <div class="report-summary">
+        <p id="rep-headline" class="report-headline">Type some keys to get your report.</p>
+        <p id="rep-compare" class="report-compare" hidden></p>
+        <div class="bands" id="rep-bands"></div>
+        <ul id="rep-diagnosis" class="diagnosis-list"></ul>
+      </div>
+      <canvas id="cv-report" class="viz" aria-label="Average sound curve"></canvas>
+    </div>
+  </section>
+
+  <section id="learn" class="section section-learn" aria-labelledby="learn-title">
+    <h2 id="learn-title" class="section-title">How it works</h2>
+    <div class="demo panel" aria-labelledby="demo-title">
+      <h3 id="demo-title" class="panel-title" data-text="ui.demo"></h3>
+      <p class="demo-intro">Turn the fruits up and down. The top shows the blended smoothie (the wave you'd hear). The bottom shows what the Fourier transform finds inside it.</p>
+      <div id="demo-controls" class="demo-controls"></div>
+      <canvas id="cv-demo-wave" class="viz viz-small" aria-label="Blended wave"></canvas>
+      <canvas id="cv-demo-spec" class="viz viz-small" aria-label="Fourier transform of the blend"></canvas>
+    </div>
+    <div id="lessons" class="cards lessons"></div>
+  </section>
+
+  <section id="recipes" class="section section-recipes" aria-labelledby="recipes-title">
+    <h2 id="recipes-title" class="section-title">Sound recipes</h2>
+    <p class="section-intro">Pick what you want. Each recipe tells you what to change and what you'll see on the graph.</p>
+    <div id="recipe-filters" class="chips" role="group" aria-label="Filter recipes"></div>
+    <div id="recipe-list" class="cards recipes"></div>
+  </section>
+
+  <section id="parts" class="section section-parts" aria-labelledby="parts-title">
+    <h2 id="parts-title" class="section-title">Keyboard parts &amp; their sound</h2>
+    <div id="part-list" class="cards parts"></div>
+  </section>
+
+  <section class="section section-tips" aria-labelledby="tips-title">
+    <h2 id="tips-title" class="section-title">Recording tips</h2>
+    <ul id="tips" class="tips"></ul>
+    <h2 class="section-title">Word list</h2>
+    <dl id="glossary" class="glossary"></dl>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <p>ThockScope runs entirely in your browser. Your audio never leaves your computer.</p>
+</footer>
+
+<script src="js/fft.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/content.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,1883 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThockScope</title>
+<meta name="description" content="See what your keyboard sounds like: a live frequency analyzer for custom mechanical keyboards.">
+<style>
+/*
+ * ThockScope — baseline look. Plain on purpose: the comic-book design replaces this.
+ * Canvas colors are read from the --c-* variables below by js/ui.js, so a new
+ * theme only needs to redefine these tokens.
+ */
+:root {
+  --bg: #f4f2ee;
+  --panel: #ffffff;
+  --ink: #1b1b1f;
+  --muted: #5d5d66;
+  --line: #d9d6cf;
+  --accent: #e4572e;
+  --accent-ink: #ffffff;
+
+  /* visualiser colors (read by ui.js) */
+  --c-bg: #ffffff;
+  --c-grid: #e7e4dd;
+  --c-text: #6b6b74;
+  --c-wave: #1b1b1f;
+  --c-bar: #2e86ab;
+  --c-curve: #e4572e;
+  --c-pin: #8a8a94;
+  --c-low: rgba(46, 134, 171, 0.10);
+  --c-mid: rgba(240, 200, 8, 0.12);
+  --c-high: rgba(228, 87, 46, 0.10);
+  --c-hit: #e4572e;
+  --c-fruit-1: #e63946;
+  --c-fruit-2: #e9c46a;
+  --c-fruit-3: #457b9d;
+  --spec-0: #ffffff;
+  --spec-1: #a8dadc;
+  --spec-2: #457b9d;
+  --spec-3: #e4572e;
+  --spec-4: #1b1b1f;
+
+  --radius: 10px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15161a; --panel: #1f2026; --ink: #ececf1; --muted: #a2a2ad; --line: #34353d;
+    --c-bg: #1f2026; --c-grid: #2c2d34; --c-text: #9a9aa5; --c-wave: #ececf1; --c-pin: #7a7a85;
+    --spec-0: #1f2026; --spec-1: #1d4e5f; --spec-2: #2e86ab; --spec-3: #f0a35e; --spec-4: #fff6d6;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); padding-inline: 16px; }
+.app-header, .app-main, .app-footer { max-width: 1200px; margin: 0 auto; }
+
+.app-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-block: 20px 8px; }
+.brand-title { margin: 0; font-size: 1.8rem; letter-spacing: -0.02em; }
+.brand-tagline { margin: 0; color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.status { flex-basis: 100%; margin: 0; min-height: 1.5em; color: var(--muted); font-size: 0.9rem; }
+.status.error { color: var(--accent); font-weight: 600; }
+
+.btn { font: inherit; font-weight: 600; border: 1.5px solid var(--ink); background: var(--panel); color: var(--ink); padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-primary.is-on { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+.btn-small { padding: 4px 10px; font-size: 0.85rem; }
+.sens { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+
+.viz-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; min-width: 0; }
+.panel-title { margin: 0 0 8px; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.panel-note { margin: 8px 0 0; color: var(--muted); font-size: 0.85rem; }
+.panel-spectrum .viz-tall { height: 160px; }
+.panel-file, .panel-report { margin-top: 16px; }
+
+.viz { display: block; width: 100%; height: 160px; border-radius: 6px; background: var(--c-bg); }
+.viz-tall { height: 300px; }
+.viz-small { height: 110px; }
+#cv-overview { cursor: pointer; }
+
+.meter { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.8rem; }
+.meter-track { position: relative; flex: 1; height: 14px; border-radius: 999px; background: linear-gradient(90deg, var(--c-curve), var(--c-mid), var(--c-bar)); }
+.meter-needle { position: absolute; top: -5px; left: 50%; width: 6px; height: 24px; margin-left: -3px; background: var(--ink); border-radius: 3px; transition: left 0.25s ease-out; opacity: 0.25; }
+.meter-needle.is-live { opacity: 1; }
+.profile-name { margin: 10px 0 0; font-size: 1.6rem; font-weight: 800; }
+.profile-desc { margin: 0 0 8px; color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 10px; }
+.stats div { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
+.stats dt { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); }
+.stats dd { margin: 0; font-weight: 700; }
+.hit-flash { animation: flash 0.25s ease-out; }
+@keyframes flash { from { background: var(--c-mid); } to { background: var(--panel); } }
+
+.report-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.report-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.report-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; }
+.report-headline { font-size: 1.15rem; font-weight: 700; margin: 0 0 6px; }
+.report-compare { margin: 0 0 8px; font-weight: 600; }
+.bands { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin-bottom: 10px; font-size: 0.7rem; font-weight: 700; }
+.bands span { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+.band-low { background: var(--c-bar); color: #fff; }
+.band-mid { background: var(--c-fruit-2); color: #1b1b1f; }
+.band-high { background: var(--c-curve); color: #fff; }
+.diagnosis-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.diagnosis-list li { border-left: 4px solid var(--c-bar); padding: 4px 10px; background: var(--bg); border-radius: 0 6px 6px 0; }
+.diagnosis-list li.warn { border-color: var(--accent); }
+.diagnosis-list li.info { border-color: var(--muted); }
+.diagnosis-list strong { display: block; }
+.recipe-link { font: inherit; font-size: 0.85rem; background: none; border: 0; padding: 0; margin-right: 10px; color: var(--accent); text-decoration: underline; cursor: pointer; }
+
+.section { margin-top: 40px; }
+.section-title { font-size: 1.4rem; margin: 0 0 8px; }
+.section-intro { margin: 0 0 12px; color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.card h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.card p { margin: 0 0 6px; }
+.card .short { font-weight: 600; }
+.card details summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
+.card.is-highlight { outline: 3px solid var(--accent); }
+
+.demo { margin-bottom: 16px; }
+.demo-intro { margin: 0 0 10px; color: var(--muted); }
+.demo-controls { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-bottom: 10px; }
+.fruit { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.fruit-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+#cv-demo-wave { margin-bottom: 8px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip { font: inherit; font-size: 0.85rem; border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); padding: 4px 12px; border-radius: 999px; cursor: pointer; }
+.chip.is-active { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.recipe-want { color: var(--muted); font-style: italic; }
+.recipe-meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+.recipe-steps { margin: 6px 0; padding-left: 18px; }
+.recipe-steps li { margin-bottom: 4px; }
+.recipe-steps .part-tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--c-bar); margin-right: 4px; }
+.recipe-steps .why { display: block; font-size: 0.85rem; color: var(--muted); }
+.recipe-graph { font-size: 0.85rem; background: var(--bg); padding: 6px 8px; border-radius: 6px; }
+.part-tip { font-size: 0.85rem; color: var(--muted); }
+
+.tips { padding-left: 18px; }
+.glossary { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+.glossary dt { font-weight: 700; }
+.glossary dd { margin: 0; color: var(--muted); }
+
+.app-footer { padding-block: 40px; color: var(--muted); font-size: 0.85rem; text-align: center; }
+
+@media (max-width: 760px) {
+  .viz-grid, .report-body { grid-template-columns: minmax(0, 1fr); }
+  .panel-spectrum { grid-row: auto; }
+  .viz-tall { height: 220px; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .controls { margin-left: 0; }
+  .glossary { grid-template-columns: 1fr; }
+  .glossary dd { margin-bottom: 6px; }
+}
+
+</style>
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <h1 class="brand-title">ThockScope</h1>
+    <p class="brand-tagline" data-text="ui.tagline"></p>
+  </div>
+  <div class="controls" role="toolbar" aria-label="Audio controls">
+    <button id="btn-mic" class="btn btn-primary" type="button">Start Mic</button>
+    <label class="btn btn-file">Upload Recording
+      <input id="file-input" type="file" accept="audio/*,video/*" hidden>
+    </label>
+    <button id="btn-play" class="btn" type="button" hidden>Play</button>
+    <button id="btn-stop" class="btn" type="button" disabled>Stop</button>
+    <label class="sens">Sensitivity
+      <input id="sens" type="range" min="0" max="1" step="0.05" value="0.5">
+    </label>
+  </div>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+</header>
+
+<main class="app-main">
+  <section class="viz-grid" aria-label="Live visualizers">
+    <article class="panel panel-wave">
+      <h2 class="panel-title" data-text="ui.waveform"></h2>
+      <canvas id="cv-wave" class="viz" aria-label="Waveform"></canvas>
+      <p class="panel-note" data-lesson="sound"></p>
+    </article>
+
+    <article class="panel panel-spectrum">
+      <h2 class="panel-title" data-text="ui.spectrum"></h2>
+      <canvas id="cv-spectrum" class="viz viz-tall" aria-label="Frequency spectrum"></canvas>
+      <p class="panel-note" data-lesson="spectrum"></p>
+    </article>
+
+    <article class="panel panel-spectrogram">
+      <h2 class="panel-title" data-text="ui.spectrogram"></h2>
+      <canvas id="cv-spectrogram" class="viz" aria-label="Spectrogram"></canvas>
+      <p class="panel-note" data-lesson="spectrogram"></p>
+    </article>
+
+    <article class="panel panel-profile">
+      <h2 class="panel-title" data-text="ui.profile"></h2>
+      <div class="meter" aria-label="Thock to clack meter">
+        <span class="meter-end meter-left" data-text="ui.meterLeft"></span>
+        <div class="meter-track"><div id="meter-needle" class="meter-needle"></div></div>
+        <span class="meter-end meter-right" data-text="ui.meterRight"></span>
+      </div>
+      <p id="prof-name" class="profile-name">—</p>
+      <p id="prof-desc" class="profile-desc" data-text="ui.micHint"></p>
+      <dl class="stats">
+        <div><dt>Main pitch</dt><dd id="st-pitch">—</dd></div>
+        <div><dt>Brightness</dt><dd id="st-bright">—</dd></div>
+        <div><dt>Fade time</dt><dd id="st-decay">—</dd></div>
+        <div><dt>Keys heard</dt><dd id="st-count">0</dd></div>
+      </dl>
+      <canvas id="cv-hit" class="viz viz-small" aria-label="Shape of the last key press"></canvas>
+    </article>
+  </section>
+
+  <section id="file-panel" class="panel panel-file" hidden>
+    <h2 class="panel-title">Your recording: <span id="file-name"></span></h2>
+    <canvas id="cv-overview" class="viz viz-small" aria-label="Whole recording, with each detected key press marked"></canvas>
+    <p class="panel-note">Each red tick is a key press ThockScope found. Click the recording to play from there.</p>
+  </section>
+
+  <section class="panel panel-report" aria-labelledby="report-title">
+    <div class="report-head">
+      <h2 id="report-title" class="panel-title">Report card</h2>
+      <div class="report-actions">
+        <button id="btn-pin" class="btn btn-small" type="button">Save as "Before"</button>
+        <button id="btn-unpin" class="btn btn-small" type="button" hidden>Clear "Before"</button>
+        <button id="btn-reset" class="btn btn-small" type="button">Start over</button>
+      </div>
+    </div>
+    <div class="report-body">
+      <div class="report-summary">
+        <p id="rep-headline" class="report-headline">Type some keys to get your report.</p>
+        <p id="rep-compare" class="report-compare" hidden></p>
+        <div class="bands" id="rep-bands"></div>
+        <ul id="rep-diagnosis" class="diagnosis-list"></ul>
+      </div>
+      <canvas id="cv-report" class="viz" aria-label="Average sound curve"></canvas>
+    </div>
+  </section>
+
+  <section id="learn" class="section section-learn" aria-labelledby="learn-title">
+    <h2 id="learn-title" class="section-title">How it works</h2>
+    <div class="demo panel" aria-labelledby="demo-title">
+      <h3 id="demo-title" class="panel-title" data-text="ui.demo"></h3>
+      <p class="demo-intro">Turn the fruits up and down. The top shows the blended smoothie (the wave you'd hear). The bottom shows what the Fourier transform finds inside it.</p>
+      <div id="demo-controls" class="demo-controls"></div>
+      <canvas id="cv-demo-wave" class="viz viz-small" aria-label="Blended wave"></canvas>
+      <canvas id="cv-demo-spec" class="viz viz-small" aria-label="Fourier transform of the blend"></canvas>
+    </div>
+    <div id="lessons" class="cards lessons"></div>
+  </section>
+
+  <section id="recipes" class="section section-recipes" aria-labelledby="recipes-title">
+    <h2 id="recipes-title" class="section-title">Sound recipes</h2>
+    <p class="section-intro">Pick what you want. Each recipe tells you what to change and what you'll see on the graph.</p>
+    <div id="recipe-filters" class="chips" role="group" aria-label="Filter recipes"></div>
+    <div id="recipe-list" class="cards recipes"></div>
+  </section>
+
+  <section id="parts" class="section section-parts" aria-labelledby="parts-title">
+    <h2 id="parts-title" class="section-title">Keyboard parts &amp; their sound</h2>
+    <div id="part-list" class="cards parts"></div>
+  </section>
+
+  <section class="section section-tips" aria-labelledby="tips-title">
+    <h2 id="tips-title" class="section-title">Recording tips</h2>
+    <ul id="tips" class="tips"></ul>
+    <h2 class="section-title">Word list</h2>
+    <dl id="glossary" class="glossary"></dl>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <p>ThockScope runs entirely in your browser. Your audio never leaves your computer.</p>
+</footer>
+
+<script>
+/*
+ * ThockScope — fft.js
+ * A tiny, dependency-free Fast Fourier Transform plus helpers.
+ *
+ * The Fourier transform takes a chunk of sound (a list of numbers that wiggle up
+ * and down over time) and tells you HOW MUCH of each pitch (frequency) is inside it.
+ * The FFT is just a very fast way to compute that.
+ *
+ * Exposes: window.ThockFFT
+ */
+(function (global) {
+  'use strict';
+
+  /** In-place radix-2 FFT. re/im are Float32Array/Float64Array of the same power-of-two length. */
+  function fft(re, im) {
+    const n = re.length;
+    if (n & (n - 1)) throw new Error('FFT length must be a power of two');
+    // Bit-reversal permutation
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) {
+        let t = re[i]; re[i] = re[j]; re[j] = t;
+        t = im[i]; im[i] = im[j]; im[j] = t;
+      }
+    }
+    // Butterflies
+    for (let len = 2; len <= n; len <<= 1) {
+      const half = len >> 1;
+      const ang = -2 * Math.PI / len;
+      const wlr = Math.cos(ang), wli = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let wr = 1, wi = 0;
+        for (let k = 0; k < half; k++) {
+          const a = i + k, b = a + half;
+          const xr = re[b] * wr - im[b] * wi;
+          const xi = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - xr; im[b] = im[a] - xi;
+          re[a] += xr; im[a] += xi;
+          const t = wr * wlr - wi * wli;
+          wi = wr * wli + wi * wlr;
+          wr = t;
+        }
+      }
+    }
+  }
+
+  const windowCache = new Map();
+
+  /** Hann window: smooth hill shape, good for steady sounds. */
+  function hann(n) {
+    const key = 'hann' + n;
+    if (windowCache.has(key)) return windowCache.get(key);
+    const w = new Float32Array(n);
+    for (let i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1));
+    windowCache.set(key, w);
+    return w;
+  }
+
+  /**
+   * Transient window: a very short fade-in, flat middle, smooth fade-out.
+   * Keeps the sharp "attack" of a keystroke intact (a Hann window would hide it).
+   */
+  function transient(n) {
+    const key = 'tr' + n;
+    if (windowCache.has(key)) return windowCache.get(key);
+    const w = new Float32Array(n);
+    const fadeIn = Math.min(32, n >> 4);
+    const fadeOutStart = Math.floor(n * 0.6);
+    for (let i = 0; i < n; i++) {
+      if (i < fadeIn) w[i] = 0.5 - 0.5 * Math.cos((Math.PI * i) / fadeIn);
+      else if (i >= fadeOutStart) w[i] = 0.5 + 0.5 * Math.cos((Math.PI * (i - fadeOutStart)) / (n - fadeOutStart));
+      else w[i] = 1;
+    }
+    windowCache.set(key, w);
+    return w;
+  }
+
+  /**
+   * Magnitude spectrum of a real signal.
+   * @param {Float32Array} samples  length must be a power of two
+   * @param {Float32Array} [win]    window (defaults to Hann)
+   * @returns {Float32Array} magnitudes, length n/2, scaled so a full-scale sine ≈ 1.0
+   */
+  function magnitudes(samples, win) {
+    const n = samples.length;
+    win = win || hann(n);
+    const re = new Float64Array(n);
+    const im = new Float64Array(n);
+    let wsum = 0;
+    for (let i = 0; i < n; i++) { re[i] = samples[i] * win[i]; wsum += win[i]; }
+    fft(re, im);
+    const out = new Float32Array(n >> 1);
+    const scale = 2 / wsum;
+    for (let i = 0; i < out.length; i++) out[i] = Math.hypot(re[i], im[i]) * scale;
+    return out;
+  }
+
+  const toDb = (mag) => 20 * Math.log10(Math.max(mag, 1e-9));
+  const fromDb = (db) => Math.pow(10, db / 20);
+
+  /** Log-spaced frequency axis (how ears hear pitch: each octave gets equal room). */
+  function logAxis(minHz, maxHz, count) {
+    const hz = new Float32Array(count);
+    const edges = new Float32Array(count + 1);
+    const lmin = Math.log(minHz), lmax = Math.log(maxHz);
+    for (let i = 0; i <= count; i++) edges[i] = Math.exp(lmin + ((lmax - lmin) * i) / count);
+    for (let i = 0; i < count; i++) hz[i] = Math.sqrt(edges[i] * edges[i + 1]);
+    return { hz, edges };
+  }
+
+  /**
+   * Squash a linear-magnitude spectrum into log-spaced bins, in dB.
+   * @param {Float32Array} mags  linear magnitudes (bin k = k * binHz)
+   * @param {number} binHz       sampleRate / fftSize
+   * @param {{hz:Float32Array, edges:Float32Array}} axis from logAxis()
+   * @param {Float32Array} [out]
+   */
+  function toLogBins(mags, binHz, axis, out) {
+    const count = axis.hz.length;
+    out = out || new Float32Array(count);
+    for (let b = 0; b < count; b++) {
+      const lo = axis.edges[b] / binHz, hi = axis.edges[b + 1] / binHz;
+      let k0 = Math.floor(lo), k1 = Math.ceil(hi);
+      let p = 0, c = 0;
+      if (k1 - k0 <= 1) {
+        // Bin narrower than one FFT bin: interpolate.
+        const x = axis.hz[b] / binHz;
+        const i = Math.min(mags.length - 2, Math.floor(x));
+        const t = x - i;
+        const m = mags[i] * (1 - t) + mags[i + 1] * t;
+        p = m * m; c = 1;
+      } else {
+        k1 = Math.min(k1, mags.length);
+        for (let k = k0; k < k1; k++) { p += mags[k] * mags[k]; c++; }
+      }
+      out[b] = 10 * Math.log10(Math.max(p / Math.max(c, 1), 1e-18));
+    }
+    return out;
+  }
+
+  /** Moving-average smoothing (used to draw the smooth "frequency curve"). */
+  function smooth(arr, radius, out) {
+    const n = arr.length;
+    out = out || new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      let s = 0, c = 0;
+      for (let j = Math.max(0, i - radius); j <= Math.min(n - 1, i + radius); j++) {
+        const w = radius + 1 - Math.abs(i - j);
+        s += arr[j] * w; c += w;
+      }
+      out[i] = s / c;
+    }
+    return out;
+  }
+
+  global.ThockFFT = { fft, hann, transient, magnitudes, toDb, fromDb, logAxis, toLogBins, smooth };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/*
+ * ThockScope — engine.js
+ * The "backend": audio input, live analysis, keystroke detection, and reports.
+ * No UI code lives here. See docs/ENGINE_API.md for the full data contract.
+ *
+ * Requires: js/fft.js (window.ThockFFT)
+ * Exposes:  window.ThockEngine
+ */
+(function (global) {
+  'use strict';
+  const F = global.ThockFFT;
+
+  // ---------------------------------------------------------------- constants
+  /** Frequency zones used everywhere (Hz). Tuned for keyboard sounds. */
+  const BANDS = [
+    { id: 'low',  name: 'Low',  nick: 'THOCK zone', from: 80,   to: 700 },
+    { id: 'mid',  name: 'Mid',  nick: 'Body zone',  from: 700,  to: 2500 },
+    { id: 'high', name: 'High', nick: 'CLACK zone', from: 2500, to: 12000 },
+  ];
+  const ANALYSIS_MIN_HZ = 80;
+  const ANALYSIS_MAX_HZ = 12000;
+
+  /** Sound-profile labels, from deepest to brightest. score = thockScore range. */
+  const PROFILES = [
+    { id: 'deep-thock',  name: 'Deep Thock',  min: 80, max: 101 },
+    { id: 'thock',       name: 'Thock',       min: 62, max: 80 },
+    { id: 'creamy',      name: 'Creamy',      min: 45, max: 62 },
+    { id: 'clack',       name: 'Clack',       min: 28, max: 45 },
+    { id: 'sharp-clack', name: 'Sharp Clack', min: -1, max: 28 },
+  ];
+
+  const DISPLAY_BINS = 96;           // bars on the spectrum display
+  const DISPLAY_MIN_HZ = 40;
+  const DISPLAY_MAX_HZ = 16000;
+  const HIT_FFT = 4096;              // samples analysed per keystroke
+  const HOP = 256;                   // envelope resolution for detection
+  const RING = 1 << 17;              // ~2.7 s of audio history at 48 kHz
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function profileFor(score) {
+    for (const p of PROFILES) if (score >= p.min && score < p.max) return p;
+    return PROFILES[PROFILES.length - 1];
+  }
+
+  // ---------------------------------------------------------------- features
+  /**
+   * Turn a linear-magnitude spectrum into kid-friendly numbers.
+   * @param {Float32Array} mags  linear magnitudes
+   * @param {number} binHz
+   */
+  function computeFeatures(mags, binHz) {
+    const k0 = Math.max(1, Math.floor(ANALYSIS_MIN_HZ / binHz));
+    const k1 = Math.min(mags.length - 1, Math.ceil(ANALYSIS_MAX_HZ / binHz));
+    let total = 0, weighted = 0;
+    const bandPow = { low: 0, mid: 0, high: 0 };
+    for (let k = k0; k <= k1; k++) {
+      const f = k * binHz;
+      const p = mags[k] * mags[k];
+      total += p; weighted += f * p;
+      if (f < BANDS[0].to) bandPow.low += p;
+      else if (f < BANDS[1].to) bandPow.mid += p;
+      else bandPow.high += p;
+    }
+    const centroid = total > 0 ? weighted / total : 0;
+    const bands = {
+      low: total ? bandPow.low / total : 0,
+      mid: total ? bandPow.mid / total : 0,
+      high: total ? bandPow.high / total : 0,
+    };
+
+    // Main pitch: loudest point of a lightly smoothed spectrum (less jumpy than a raw max).
+    let peakHz = 0, best = -1;
+    for (let k = k0 + 1; k < k1; k++) {
+      const v = mags[k - 1] + 2 * mags[k] + mags[k + 1];
+      if (v > best) { best = v; peakHz = k * binHz; }
+    }
+
+    // thockScore: 100 = very deep, 0 = very bright. Mostly from brightness (centroid),
+    // nudged by how much energy sits in the THOCK zone.
+    const cScore = centroid > 0
+      ? ((Math.log(5000) - Math.log(centroid)) / (Math.log(5000) - Math.log(800))) * 100
+      : 50;
+    const lScore = (bands.low / 0.6) * 100;
+    const thockScore = Math.round(clamp(0.7 * cScore + 0.3 * lScore, 0, 100));
+
+    return { centroid, peakHz, bands, thockScore, profile: profileFor(thockScore).id };
+  }
+
+  /** How "pingy" a spectrum is: the tallest narrow spike above its neighbourhood (dB). */
+  function tonality(mags, binHz) {
+    const R = Math.max(8, Math.round(800 / binHz)); // compare against ±800 Hz around the spike
+    const k0 = Math.max(R, Math.floor(1000 / binHz)), k1 = Math.min(mags.length - R - 1, Math.floor(9000 / binHz));
+    let bestProm = 0, bestHz = 0;
+    const tmp = [];
+    for (let k = k0; k < k1; k++) {
+      const v = F.toDb(mags[k]);
+      if (mags[k] < mags[k - 1] || mags[k] < mags[k + 1]) continue;
+      tmp.length = 0;
+      for (let j = k - R; j <= k + R; j += 2) tmp.push(F.toDb(mags[j]));
+      tmp.sort((a, b) => a - b);
+      const prom = v - tmp[tmp.length >> 1];
+      if (prom > bestProm) { bestProm = prom; bestHz = k * binHz; }
+    }
+    return { prominenceDb: bestProm, hz: bestHz };
+  }
+
+  // ---------------------------------------------------------------- detector
+  /**
+   * Finds keystrokes in a stream of audio and analyses each one.
+   * Works the same for live mic audio and for files (offline).
+   */
+  class KeystrokeDetector {
+    constructor(sampleRate, onHit) {
+      this.sr = sampleRate;
+      this.onHit = onHit;
+      this.sensitivity = 0.5;
+      this.axis = F.logAxis(DISPLAY_MIN_HZ, DISPLAY_MAX_HZ, DISPLAY_BINS);
+      this.reset();
+    }
+    reset() {
+      this.ring = new Float32Array(RING);
+      this.env = new Float32Array(RING / HOP);   // per-hop RMS history
+      this.total = 0;      // absolute samples written
+      this.hopPos = 0;     // absolute sample index of next hop to process
+      this.noise = 0;      // running noise floor (RMS)
+      this.lastOnset = -1e12;
+      this.pending = [];
+    }
+    setSensitivity(s) { this.sensitivity = clamp(s, 0, 1); }
+
+    push(block) {
+      const n = block.length;
+      for (let i = 0; i < n; i++) this.ring[(this.total + i) & (RING - 1)] = block[i];
+      this.total += n;
+      while (this.total - this.hopPos >= HOP) { this._hop(); this.hopPos += HOP; }
+      this._flushReady(false);
+    }
+    /** Call at end of a file so the last keystrokes get analysed. */
+    finish() {
+      this.push(new Float32Array(Math.ceil(this.sr * 0.45)));
+      this._flushReady(true);
+    }
+
+    _hop() {
+      let s = 0;
+      for (let i = 0; i < HOP; i++) { const v = this.ring[(this.hopPos + i) & (RING - 1)]; s += v * v; }
+      const rms = Math.sqrt(s / HOP);
+      const hopIdx = this.hopPos / HOP;
+      const envLen = this.env.length;
+      this.env[hopIdx % envLen] = rms;
+
+      if (this.noise === 0) this.noise = Math.max(rms, 1e-5);
+      const sinceOnset = (this.hopPos - this.lastOnset) / this.sr;
+
+      // Recent minimum of the envelope (so slow swells don't count as hits).
+      let recentMin = Infinity;
+      for (let j = 1; j <= 3; j++) recentMin = Math.min(recentMin, this.env[(hopIdx - j + envLen) % envLen]);
+      if (!isFinite(recentMin)) recentMin = rms;
+
+      // Higher sensitivity => lower thresholds.
+      const ratio = 7 - this.sensitivity * 4.5;          // 7x .. 2.5x above noise
+      const absMin = 0.006 - this.sensitivity * 0.005;   // 0.006 .. 0.001
+      const isOnset = sinceOnset > 0.07 && rms > this.noise * ratio && rms > absMin && rms > recentMin * 2.2;
+
+      if (isOnset) {
+        this.lastOnset = this.hopPos;
+        this.pending.push({ onset: this.hopPos, hopIdx });
+      } else if (sinceOnset > 0.25) {
+        // Track noise floor only in quiet moments.
+        this.noise = rms < this.noise ? this.noise * 0.8 + rms * 0.2 : this.noise * 0.995 + rms * 0.005;
+      }
+    }
+
+    _flushReady(force) {
+      const need = Math.max(HIT_FFT, Math.ceil(this.sr * 0.35));
+      while (this.pending.length && (force || this.total >= this.pending[0].onset + need)) {
+        const hit = this.pending.shift();
+        const nextOnset = this.pending.length ? this.pending[0].onset : Infinity;
+        try { this.onHit(this._analyse(hit, nextOnset)); } catch (e) { console.error(e); }
+      }
+    }
+
+    _analyse(hit, nextOnset) {
+      const sr = this.sr, envLen = this.env.length;
+      const start = hit.onset - HOP;
+      const buf = new Float32Array(HIT_FFT);
+      let peakAbs = 0;
+      for (let i = 0; i < HIT_FFT; i++) {
+        const v = this.ring[(start + i) & (RING - 1)];
+        buf[i] = v;
+        const a = Math.abs(v); if (a > peakAbs) peakAbs = a;
+      }
+      const mags = F.magnitudes(buf, F.transient(HIT_FFT));
+      const binHz = sr / HIT_FFT;
+      const feat = computeFeatures(mags, binHz);
+
+      // Ring / ping check: look at what is STILL sounding 50 ms after the hit,
+      // once the thump has died. A tall narrow spike there = metal ringing (spring ping).
+      // A ring also fades SLOWLY: compare the spike 30 ms later (if there's room).
+      const LATE = 2048, lateStart = hit.onset + Math.floor(sr * 0.05), lateGap = Math.floor(sr * 0.03);
+      let ton = { prominenceDb: 0, hz: 0 }, lateRel = 0, sustain = 1;
+      const grab = (from) => {
+        const out = new Float32Array(LATE);
+        for (let i = 0; i < LATE; i++) out[i] = this.ring[(from + i) & (RING - 1)];
+        return out;
+      };
+      if (lateStart + LATE <= nextOnset) {
+        const late = grab(lateStart);
+        let lateAbs = 0;
+        for (let i = 0; i < LATE; i++) { const a = Math.abs(late[i]); if (a > lateAbs) lateAbs = a; }
+        lateRel = peakAbs > 0 ? lateAbs / peakAbs : 0;
+        const lateMags = F.magnitudes(late, F.hann(LATE));
+        ton = tonality(lateMags, sr / LATE);
+        if (ton.hz && lateStart + lateGap + LATE <= nextOnset) {
+          const later = F.magnitudes(grab(lateStart + lateGap), F.hann(LATE));
+          const k = Math.round(ton.hz / (sr / LATE));
+          const a = Math.max(lateMags[k - 1], lateMags[k], lateMags[k + 1]);
+          const b = Math.max(later[k - 1], later[k], later[k + 1]);
+          sustain = a > 0 ? b / a : 0;   // ~0.8 for spring ping, ~0.1 for a normal thump tail
+        }
+      }
+
+      // Decay: how long until the sound fades 20 dB below its loudest point.
+      const maxHops = Math.floor((Math.min(nextOnset, hit.onset + sr * 0.35) - hit.onset) / HOP);
+      let peakRms = 0, peakHop = 0;
+      for (let j = 0; j < Math.min(6, maxHops); j++) {
+        const v = this.env[(hit.hopIdx + j) % envLen];
+        if (v > peakRms) { peakRms = v; peakHop = j; }
+      }
+      let endHop = maxHops;
+      for (let j = peakHop; j < maxHops; j++) {
+        const v = this.env[(hit.hopIdx + j) % envLen];
+        if (v < peakRms * 0.1 || v < this.noise * 1.5) { endHop = j; break; }
+      }
+      const decayMs = Math.round(((endHop - peakHop) * HOP / sr) * 1000);
+
+      // Waveform snippet (first ~60 ms) for drawing the "shape" of the click.
+      const snipLen = Math.min(HIT_FFT, Math.floor(sr * 0.06));
+      const snippet = new Float32Array(256);
+      for (let i = 0; i < 256; i++) snippet[i] = buf[Math.floor((i / 256) * snipLen)];
+
+      const binsDb = F.toLogBins(mags, binHz, this.axis);
+      return {
+        time: hit.onset / sr,
+        ...feat,
+        decayMs,
+        ringy: ton.prominenceDb > 15 && lateRel > 0.02 && sustain > 0.45,
+        ringHz: Math.round(ton.hz),
+        peakDb: Math.round(F.toDb(peakAbs) * 10) / 10,
+        clipped: peakAbs >= 0.99,
+        binsDb,
+        snippet,
+      };
+    }
+  }
+
+  // ---------------------------------------------------------------- summary
+  function median(arr) {
+    if (!arr.length) return 0;
+    const s = [...arr].sort((a, b) => a - b);
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  /**
+   * Combine many keystrokes into one report card.
+   * @param {Array} hits  keystroke objects
+   */
+  function summarize(hits) {
+    const axis = F.logAxis(DISPLAY_MIN_HZ, DISPLAY_MAX_HZ, DISPLAY_BINS);
+    if (!hits.length) return { count: 0, binsHz: axis.hz, diagnosis: ['too-few-hits'] };
+    const n = hits.length;
+    const avg = (fn) => hits.reduce((s, h) => s + fn(h), 0) / n;
+
+    // Average spectrum (average power, back to dB).
+    const binsDb = new Float32Array(DISPLAY_BINS);
+    for (let b = 0; b < DISPLAY_BINS; b++) {
+      let p = 0;
+      for (const h of hits) p += Math.pow(10, h.binsDb[b] / 10);
+      binsDb[b] = 10 * Math.log10(p / n);
+    }
+    const curveDb = F.smooth(binsDb, 3);
+    let peakHz = 0, best = -Infinity;
+    for (let b = 0; b < DISPLAY_BINS; b++) {
+      if (axis.hz[b] < ANALYSIS_MIN_HZ || axis.hz[b] > ANALYSIS_MAX_HZ) continue;
+      if (curveDb[b] > best) { best = curveDb[b]; peakHz = axis.hz[b]; }
+    }
+
+    const scores = hits.map((h) => h.thockScore);
+    const thockScore = Math.round(avg((h) => h.thockScore));
+    const spread = Math.sqrt(avg((h) => (h.thockScore - thockScore) ** 2));
+    const bands = { low: avg((h) => h.bands.low), mid: avg((h) => h.bands.mid), high: avg((h) => h.bands.high) };
+    const decayMs = Math.round(median(hits.map((h) => h.decayMs)));
+    const ringFraction = hits.filter((h) => h.ringy).length / n;
+    const peakDb = Math.round(median(hits.map((h) => h.peakDb)));
+    const clipped = hits.some((h) => h.clipped);
+    const profile = profileFor(thockScore);
+
+    const diagnosis = [];
+    if (n < 8) diagnosis.push('too-few-hits');
+    if (clipped) diagnosis.push('clipping');
+    if (peakDb < -45) diagnosis.push('too-quiet');
+    if (thockScore < 28) diagnosis.push('very-bright');
+    else if (thockScore < 45) diagnosis.push('bright');
+    else if (thockScore >= 62) diagnosis.push('deep');
+    else diagnosis.push('balanced');
+    if (ringFraction > 0.25) diagnosis.push('ringy');
+    if (decayMs > 140) diagnosis.push('hollow');
+    if (spread > 14 && n >= 8) diagnosis.push('inconsistent');
+
+    return {
+      count: n,
+      thockScore,
+      profile: profile.id,
+      profileName: profile.name,
+      consistency: Math.round(clamp(100 - spread * 3, 0, 100)), // 100 = every key sounds alike
+      centroid: Math.round(median(hits.map((h) => h.centroid))),
+      peakHz: Math.round(peakHz),
+      bands,
+      decayMs,
+      ringFraction,
+      peakDb,
+      clipped,
+      binsHz: axis.hz,
+      binsDb,
+      curveDb,
+      scores,
+      diagnosis,
+    };
+  }
+
+  // ---------------------------------------------------------------- engine
+  const listeners = {};
+  function emit(evt, data) { (listeners[evt] || []).forEach((cb) => { try { cb(data); } catch (e) { console.error(e); } }); }
+
+  const E = {
+    BANDS, PROFILES, DISPLAY_BINS,
+    state: 'idle',          // 'idle' | 'mic' | 'file-playing' | 'file-paused'
+    ctx: null,
+    analyser: null,
+    file: null,             // { name, buffer, report }
+    sessionHits: [],
+    sensitivity: 0.5,
+
+    on(evt, cb) { (listeners[evt] = listeners[evt] || []).push(cb); return () => E.off(evt, cb); },
+    off(evt, cb) { listeners[evt] = (listeners[evt] || []).filter((f) => f !== cb); },
+
+    _ensureCtx() {
+      if (!this.ctx) {
+        const AC = global.AudioContext || global.webkitAudioContext;
+        if (!AC) throw new Error('This browser does not support the Web Audio API.');
+        this.ctx = new AC();
+        const an = this.ctx.createAnalyser();
+        an.fftSize = 4096;
+        an.smoothingTimeConstant = 0.55;
+        an.minDecibels = -110;
+        an.maxDecibels = -10;
+        this.analyser = an;
+        this._time = new Float32Array(an.fftSize);
+        this._freqDb = new Float32Array(an.frequencyBinCount);
+        this._mags = new Float32Array(an.frequencyBinCount);
+        this._axis = F.logAxis(DISPLAY_MIN_HZ, DISPLAY_MAX_HZ, DISPLAY_BINS);
+        this._binsDb = new Float32Array(DISPLAY_BINS);
+        this._curveDb = new Float32Array(DISPLAY_BINS);
+
+        // Raw sample tap for keystroke detection. ScriptProcessor is old but works
+        // everywhere, including when the page is opened straight from a file.
+        const proc = this.ctx.createScriptProcessor(2048, 1, 1);
+        proc.channelCountMode = 'explicit';
+        proc.channelInterpretation = 'speakers';
+        const mute = this.ctx.createGain(); mute.gain.value = 0;
+        proc.connect(mute); mute.connect(this.ctx.destination);
+        this._proc = proc;
+        this._detector = new KeystrokeDetector(this.ctx.sampleRate, (hit) => {
+          this.sessionHits.push(hit);
+          if (this.sessionHits.length > 400) this.sessionHits.shift();
+          emit('keystroke', hit);
+        });
+        this._detector.setSensitivity(this.sensitivity);
+        proc.onaudioprocess = (e) => { if (this.state === 'mic' || this.state === 'file-playing') this._detector.push(e.inputBuffer.getChannelData(0)); };
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return this.ctx;
+    },
+
+    _setState(s) { this.state = s; emit('state', s); if (s !== 'idle' && s !== 'file-paused') this._loop(); },
+
+    _loop() {
+      if (this._raf) return;
+      const tick = () => {
+        this._raf = null;
+        if (this.state === 'idle' || this.state === 'file-paused') return;
+        emit('frame', this._frame());
+        this._raf = requestAnimationFrame(tick);
+      };
+      this._raf = requestAnimationFrame(tick);
+    },
+
+    /** Build one live frame from the analyser. Arrays are reused between frames — copy if you keep them. */
+    _frame() {
+      const an = this.analyser, sr = this.ctx.sampleRate;
+      an.getFloatTimeDomainData(this._time);
+      an.getFloatFrequencyData(this._freqDb);
+      for (let i = 0; i < this._mags.length; i++) this._mags[i] = F.fromDb(this._freqDb[i]);
+      let s = 0;
+      for (let i = 0; i < this._time.length; i++) s += this._time[i] * this._time[i];
+      const rms = Math.sqrt(s / this._time.length);
+      F.toLogBins(this._mags, sr / an.fftSize, this._axis, this._binsDb);
+      F.smooth(this._binsDb, 2, this._curveDb);
+      return {
+        time: this.ctx.currentTime,
+        sampleRate: sr,
+        waveform: this._time,
+        freqDb: this._freqDb,
+        binHz: sr / an.fftSize,
+        binsHz: this._axis.hz,
+        binsDb: this._binsDb,
+        curveDb: this._curveDb,
+        rms,
+        levelDb: F.toDb(rms),
+        features: computeFeatures(this._mags, sr / an.fftSize),
+        playhead: this.state.startsWith('file') ? this._playhead() : null,
+      };
+    },
+
+    _disconnectSources() {
+      if (this._micNode) { this._micNode.disconnect(); this._micNode = null; }
+      if (this._micStream) { this._micStream.getTracks().forEach((t) => t.stop()); this._micStream = null; }
+      if (this._src) { this._src.onended = null; try { this._src.stop(); } catch (_) {} this._src.disconnect(); this._src = null; }
+    },
+
+    /** Start listening to the microphone. Must be called from a click/tap. */
+    async startMic() {
+      const ctx = this._ensureCtx();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Microphone access is not available here. Try Chrome, Edge or Firefox.');
+      }
+      this.stop();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+      });
+      this._micStream = stream;
+      this._micNode = ctx.createMediaStreamSource(stream);
+      this._micNode.connect(this.analyser);
+      this._micNode.connect(this._proc);
+      this._detector.reset();
+      this._setState('mic');
+    },
+
+    /**
+     * Load an audio file (wav/mp3/ogg/m4a/webm...). Runs a full offline analysis
+     * and returns the report. Does not start playback.
+     */
+    async loadFile(file) {
+      const ctx = this._ensureCtx();
+      this.stop();
+      const data = await file.arrayBuffer();
+      const buffer = await ctx.decodeAudioData(data);
+      const report = E.analyzeBuffer(buffer);
+      report.name = file.name;
+      this.file = { name: file.name, buffer, report, offset: 0 };
+      emit('file', report);
+      return report;
+    },
+
+    /** Analyse a whole AudioBuffer offline (no playback). */
+    analyzeBuffer(buffer) {
+      const sr = buffer.sampleRate, len = buffer.length, ch = buffer.numberOfChannels;
+      const mono = new Float32Array(len);
+      for (let c = 0; c < ch; c++) { const d = buffer.getChannelData(c); for (let i = 0; i < len; i++) mono[i] += d[i] / ch; }
+      const hits = [];
+      const det = new KeystrokeDetector(sr, (h) => hits.push(h));
+      det.setSensitivity(this.sensitivity);
+      for (let i = 0; i < len; i += 4096) det.push(mono.subarray(i, Math.min(len, i + 4096)));
+      det.finish();
+
+      // Overview: min/max pairs for drawing the whole recording.
+      const points = 1200, step = Math.max(1, Math.floor(len / points));
+      const overview = new Float32Array(points * 2);
+      for (let p = 0; p < points; p++) {
+        let mn = 0, mx = 0;
+        for (let i = p * step; i < Math.min(len, (p + 1) * step); i++) { const v = mono[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        overview[p * 2] = mn; overview[p * 2 + 1] = mx;
+      }
+      return { duration: buffer.duration, sampleRate: sr, hits, summary: summarize(hits), overview };
+    },
+
+    /** Play the loaded file through the live visualisers. */
+    playFile(fromSeconds) {
+      if (!this.file) throw new Error('Load a recording first.');
+      const ctx = this._ensureCtx();
+      this._disconnectSources();
+      const src = ctx.createBufferSource();
+      src.buffer = this.file.buffer;
+      src.connect(this.analyser);
+      src.connect(this._proc);
+      src.connect(ctx.destination);
+      const offset = fromSeconds != null ? fromSeconds : (this.file.offset >= this.file.buffer.duration ? 0 : this.file.offset);
+      src.start(0, offset);
+      this._src = src;
+      this._playStart = ctx.currentTime - offset;
+      this._detector.reset();
+      src.onended = () => { if (this._src === src) { this.file.offset = 0; this._src = null; this._setState('idle'); emit('ended'); } };
+      this._setState('file-playing');
+    },
+
+    pauseFile() {
+      if (this.state !== 'file-playing') return;
+      this.file.offset = this._playhead();
+      this._disconnectSources();
+      this._setState('file-paused');
+    },
+
+    _playhead() { return this._src ? this.ctx.currentTime - this._playStart : (this.file ? this.file.offset : 0); },
+
+    /** Stop mic or playback. */
+    stop() {
+      this._disconnectSources();
+      if (this.state !== 'idle') this._setState('idle');
+    },
+
+    /** 0 = only loud hits count, 1 = very sensitive. */
+    setSensitivity(s) {
+      this.sensitivity = clamp(s, 0, 1);
+      if (this._detector) this._detector.setSensitivity(this.sensitivity);
+    },
+
+    /** Report card for everything heard live since the last reset. */
+    getSessionSummary() { return summarize(this.sessionHits); },
+    resetSession() { this.sessionHits = []; emit('session-reset'); },
+
+    // Pure helpers, exported for UIs and tests
+    summarize,
+    computeFeatures,
+    profileFor,
+    KeystrokeDetector,
+
+    /**
+     * Fourier "smoothie" demo. Mix simple waves ("fruits") and un-mix them again.
+     * @param {Array<{hz:number, amp:number}>} parts
+     * @returns {{wave:Float32Array, waveMs:number, spectrum:Float32Array, binHz:number, maxHz:number}}
+     */
+    demoMix(parts, opts) {
+      opts = opts || {};
+      const sr = opts.sampleRate || 8000, n = opts.size || 2048;
+      const sig = new Float32Array(n);
+      for (const p of parts) {
+        const ph = p.phase || 0;
+        for (let i = 0; i < n; i++) sig[i] += p.amp * Math.sin(2 * Math.PI * p.hz * (i / sr) + ph);
+      }
+      const waveMs = opts.waveMs || 25;
+      const wn = Math.floor((sr * waveMs) / 1000);
+      const spectrum = F.magnitudes(sig, F.hann(n));
+      return { wave: sig.slice(0, wn), waveMs, spectrum, binHz: sr / n, maxHz: sr / 2, sampleRate: sr };
+    },
+  };
+
+  global.ThockEngine = E;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/*
+ * ThockScope — content.js
+ * Every word the app shows. Written for curious 12–14 year olds:
+ * short sentences, one idea at a time, no math required.
+ *
+ * Exposes: window.ThockContent
+ */
+(function (global) {
+  'use strict';
+
+  /** Short "How it works" lessons, in reading order. `visual` hints which panel each one explains. */
+  const lessons = [
+    {
+      id: 'sound',
+      title: 'Sound is a wiggle',
+      visual: 'waveform',
+      short: 'Every sound is air wiggling back and forth, super fast.',
+      body: 'When a key hits bottom, it shoves the air. That push spreads out like a ripple in a pond and wiggles your eardrum. The WAVE panel draws those wiggles: up is air squished together, down is air spread apart.',
+    },
+    {
+      id: 'frequency',
+      title: 'Fast wiggle = high pitch',
+      visual: 'waveform',
+      short: 'How fast the air wiggles is the pitch. We measure it in Hertz (Hz).',
+      body: '1 Hz means one wiggle per second. A deep drum wiggles about 100 times a second (100 Hz). A whistle wiggles thousands of times (3000 Hz or more). Humans hear from about 20 Hz up to about 20,000 Hz.',
+    },
+    {
+      id: 'mixed',
+      title: 'Real sounds are a mix',
+      visual: 'demo',
+      short: 'A key press is lots of pitches playing at the same time.',
+      body: 'A keystroke is not one clean pitch. It is a low thump from the case, a middle "body" sound, and a sharp high click from the plastic, all at once. Mixed together, the wave looks messy.',
+    },
+    {
+      id: 'fourier',
+      title: 'The smoothie trick (Fourier transform)',
+      visual: 'demo',
+      short: 'The Fourier transform un-blends a sound back into its ingredients.',
+      body: 'Imagine a smoothie made of strawberries, bananas and blueberries. The Fourier transform is like a magic machine that takes the smoothie and tells you exactly how much of each fruit went in. For sound, the "fruits" are pitches. The computer tests the sound against every pitch and asks "how much of YOU is in here?" The FFT (Fast Fourier Transform) is just a really quick way to do that — your computer does it about 60 times every second.',
+    },
+    {
+      id: 'spectrum',
+      title: 'Reading the spectrum',
+      visual: 'spectrum',
+      short: 'Left = low pitches, right = high pitches. Taller bar = louder.',
+      body: 'The SPECTRUM is the answer from the smoothie machine. Each bar is one range of pitches. Bars on the left are deep sounds (THOCK zone). Bars on the right are sharp sounds (CLACK zone). The smooth line on top is the frequency curve: the overall "shape" of the sound, like a fingerprint.',
+    },
+    {
+      id: 'spectrogram',
+      title: 'The spectrogram: sound over time',
+      visual: 'spectrogram',
+      short: 'It stacks spectrums side by side, like a flip-book of sound.',
+      body: 'Each thin slice is one spectrum, turned sideways. Time moves left to right, pitch goes bottom (low) to top (high), and brighter color means louder. Every key press shows up as a bright stripe. A stripe that keeps going after the key press is a ring or echo.',
+    },
+    {
+      id: 'profile',
+      title: 'Thock vs Clack',
+      visual: 'profile',
+      short: 'Thock = mostly low pitches. Clack = mostly high pitches.',
+      body: 'ThockScope finds the "balance point" of each key press (called the centroid, or brightness). If the balance point is low, the board sounds deep and thocky. If it is high, it sounds bright and clacky. Neither is better — it is about what YOU like.',
+    },
+    {
+      id: 'fair-test',
+      title: 'Make it a fair test',
+      visual: 'none',
+      short: 'Change one thing at a time and record the same way each time.',
+      body: 'Different mics hear differently, so scores are best for comparing. Record before and after a mod with the same mic, the same spot, and the same typing. If you change two things at once, you won\'t know which one made the difference.',
+    },
+  ];
+
+  /** Sound profile descriptions (ids match ThockEngine.PROFILES). */
+  const profiles = {
+    'deep-thock': { name: 'Deep Thock', soundsLike: 'a soft wooden "thud", like tapping a closed book', text: 'Almost all the sound is low. Very muted and deep.' },
+    'thock':      { name: 'Thock',      soundsLike: 'a rounded "thok", like a marble dropped on wood', text: 'Mostly low with a little bit of click on top.' },
+    'creamy':     { name: 'Creamy',     soundsLike: 'a smooth, soft "tock" with no harsh edges', text: 'Balanced: some low, some middle, not much harsh high end.' },
+    'clack':      { name: 'Clack',      soundsLike: 'a crisp "clack", like plastic tapping plastic', text: 'Lots of middle and high sound. Snappy and lively.' },
+    'sharp-clack':{ name: 'Sharp Clack',soundsLike: 'a bright "tick!", like a pen clicking', text: 'Mostly high, sharp sound. Very bright and loud-feeling.' },
+  };
+
+  /** The parts of a keyboard and what each does to the sound. */
+  const parts = [
+    {
+      id: 'keycaps', name: 'Keycaps',
+      what: 'The plastic caps your fingers touch.',
+      sound: 'Thicker caps = deeper sound. Thin caps = higher, clackier. PBT plastic usually sounds a bit deeper and drier than ABS. Tall caps (like SA profile) sound deeper and louder than short ones.',
+      tip: 'Keycaps are the easiest big sound change — no tools needed.',
+    },
+    {
+      id: 'switches', name: 'Switches',
+      what: 'The little spring mechanism under each key.',
+      sound: 'Linear = smooth, no bump. Tactile = a small bump. Clicky = a built-in "click" (very bright). The housing plastic and the stem shape change the pitch of the bottom-out.',
+      tip: 'Clicky switches will always score "clacky" — that click is the point!',
+    },
+    {
+      id: 'lube', name: 'Lube & films',
+      what: 'Special grease on the switch parts, and thin films between the switch halves.',
+      sound: 'Lube makes switches smoother and deeper, and removes scratchy noise. Films stop wobble so the sound is tighter.',
+      tip: 'A little goes a long way. Too much lube makes switches feel mushy.',
+    },
+    {
+      id: 'springs', name: 'Springs',
+      what: 'The metal spring inside each switch.',
+      sound: 'Dry springs can "ping" — a tiny metallic ring after each press. Shows up as a thin line that lingers on the spectrogram.',
+      tip: 'Bag-lubing springs (shake them in a bag with a drop of oil) fixes most ping.',
+    },
+    {
+      id: 'stabilizers', name: 'Stabilizers',
+      what: 'The wire parts under long keys: spacebar, Shift, Enter, Backspace.',
+      sound: 'Badly tuned stabs rattle — a buzzy, jangly sound that is louder than the other keys.',
+      tip: 'Clipping, lubing the wire ends, and the "band-aid mod" fix rattle.',
+    },
+    {
+      id: 'plate', name: 'Plate',
+      what: 'The sheet the switches snap into.',
+      sound: 'Metal plates (aluminum, brass, steel) sound brighter and higher. Softer plates (polycarbonate, POM, FR4) sound deeper and more muted.',
+      tip: 'Polycarbonate (PC) is a popular "thock" plate.',
+    },
+    {
+      id: 'pcb', name: 'PCB',
+      what: 'The circuit board that reads your key presses.',
+      sound: 'The empty space under the PCB can echo. Tape or foam under it changes that.',
+      tip: 'The "tape mod" (painter\'s tape on the back of the PCB) is cheap and makes things deeper and poppier.',
+    },
+    {
+      id: 'case', name: 'Case',
+      what: 'The outer shell.',
+      sound: 'Empty space inside a case acts like a drum — it can sound hollow. Heavy cases (aluminum) sound solid; light plastic cases can sound hollow or rattly.',
+      tip: 'Filling the empty space with foam is the #1 fix for hollowness.',
+    },
+    {
+      id: 'foam', name: 'Foams',
+      what: 'Foam layers: in the case, between plate and PCB, or under switches (PE foam).',
+      sound: 'Case foam removes echo. Plate foam removes high ping. A thin PE foam sheet under the switches makes a "poppy", marbly sound.',
+      tip: 'Add one foam at a time and record each step.',
+    },
+    {
+      id: 'mount', name: 'Mounting style',
+      what: 'How the plate is held inside the case: tray, top, gasket, and more.',
+      sound: 'Gasket mounts float on soft pads — softer, deeper, more even. Tray mounts screw straight down — harsher and can sound different across the board.',
+      tip: 'You usually choose this when buying a board, not change it later.',
+    },
+    {
+      id: 'desk', name: 'Desk & mat',
+      what: 'What the keyboard sits on.',
+      sound: 'A hard desk adds its own echo. A desk mat soaks that up and makes everything a little deeper and quieter.',
+      tip: 'Free test: record on the bare desk, then on a folded towel.',
+    },
+  ];
+
+  /**
+   * Sound recipes: "I want X → do this".
+   * steps: { part, do, why }  part = id from `parts`
+   * cost: 1 = free/cheap, 2 = some money, 3 = expensive
+   * effort: 1 = 5 minutes, 2 = an afternoon, 3 = big project (open every switch)
+   */
+  const recipes = [
+    {
+      id: 'deeper-thock', goal: 'Deeper thock', want: 'I want my keyboard to sound deeper and more "thocky".',
+      graph: 'Bars on the left (THOCK zone) get taller, bars on the right get shorter. Your score goes up.',
+      cost: 2, effort: 2, tags: ['thock', 'deeper'],
+      steps: [
+        { part: 'keycaps', do: 'Switch to thick PBT keycaps (taller profiles go even deeper).', why: 'Thick plastic vibrates slower, so lower pitches.' },
+        { part: 'pcb', do: 'Do the tape mod: 2–3 layers of painter\'s tape on the back of the PCB.', why: 'Cuts high-pitched echo under the board.' },
+        { part: 'foam', do: 'Add case foam to fill the empty space.', why: 'Stops the case from acting like a drum.' },
+        { part: 'plate', do: 'Try a polycarbonate (PC) or POM plate.', why: 'Soft plates soak up high frequencies.' },
+        { part: 'lube', do: 'Lube your switches with a thick lube.', why: 'Smooths out scratchy high sounds.' },
+        { part: 'desk', do: 'Put a desk mat under the keyboard.', why: 'Removes desk echo.' },
+      ],
+    },
+    {
+      id: 'crisp-clack', goal: 'Crisp clack', want: 'I want a bright, snappy, clacky sound.',
+      graph: 'More energy in the right side (CLACK zone). Score goes down.',
+      cost: 2, effort: 2, tags: ['clack', 'brighter'],
+      steps: [
+        { part: 'keycaps', do: 'Use thinner ABS keycaps, or a low/short profile.', why: 'Thin plastic rings at higher pitches.' },
+        { part: 'switches', do: 'Pick switches with a long-pole stem or a hard housing (e.g. nylon/PC mix).', why: 'Hard parts hitting each other = sharp sound.' },
+        { part: 'plate', do: 'Use an aluminum or brass plate.', why: 'Stiff metal reflects high frequencies.' },
+        { part: 'lube', do: 'Use little or no lube on the bottom housing.', why: 'Lube softens the clack.' },
+      ],
+    },
+    {
+      id: 'creamy', goal: 'Creamy & smooth', want: 'I want a smooth, soft sound with no harsh edges.',
+      graph: 'A gentle hill-shaped curve with no sharp spikes. Score in the middle (45–62).',
+      cost: 2, effort: 3, tags: ['creamy', 'smooth'],
+      steps: [
+        { part: 'switches', do: 'Use linear switches with a POM or UHMWPE stem.', why: 'These plastics are naturally smooth and quiet.' },
+        { part: 'lube', do: 'Lube switches carefully and add films.', why: 'Removes scratch and wobble — the "harsh edges".' },
+        { part: 'stabilizers', do: 'Tune your stabilizers.', why: 'Rattle is the opposite of creamy.' },
+        { part: 'foam', do: 'Add plate foam and case foam.', why: 'Rounds off spikes in the spectrum.' },
+      ],
+    },
+    {
+      id: 'marbly-poppy', goal: 'Marbly / poppy', want: 'I want a "poppy" sound, like marbles clicking together.',
+      graph: 'A strong bump in the Mid (Body) zone and a short decay (sound stops quickly).',
+      cost: 1, effort: 1, tags: ['poppy', 'marbly'],
+      steps: [
+        { part: 'foam', do: 'Put a thin PE foam sheet between the PCB and the switches.', why: 'Famous for the "marbly" pop.' },
+        { part: 'pcb', do: 'Add the tape mod too.', why: 'Tape + PE foam stack well together.' },
+        { part: 'keycaps', do: 'Try thick PBT or SA-profile caps.', why: 'Adds a rounder note to the pop.' },
+      ],
+    },
+    {
+      id: 'quieter', goal: 'Quieter (class, library, late night)', want: 'I want my keyboard to be quieter so I don\'t bother anyone.',
+      graph: 'Lower loudness (peak dB) on every key press, and fewer bars in the CLACK zone.',
+      cost: 2, effort: 2, tags: ['quiet'],
+      steps: [
+        { part: 'switches', do: 'Use "silent" switches (they have rubber pads inside).', why: 'Pads cushion the bottom-out and the top-out.' },
+        { part: 'keycaps', do: 'Add O-rings under the keycaps.', why: 'Stops the cap from slamming down (they change the feel a little).' },
+        { part: 'foam', do: 'Fill the case with foam.', why: 'Less echo = less volume.' },
+        { part: 'desk', do: 'Use a thick desk mat.', why: 'Stops the desk from amplifying the sound.' },
+        { part: 'switches', do: 'Type a bit lighter — don\'t slam the keys to the bottom.', why: 'Free and it works!' },
+      ],
+    },
+    {
+      id: 'fix-ping', goal: 'Fix spring ping', want: 'I hear a tiny metal "ting" after each key press.',
+      graph: 'ThockScope shows "ringy". On the spectrogram you see a thin line that keeps going after each hit.',
+      cost: 1, effort: 2, tags: ['fix', 'ping'],
+      steps: [
+        { part: 'springs', do: 'Bag-lube the springs: put springs in a small bag with 1–2 drops of thin oil and shake.', why: 'A thin coat of oil stops the metal from ringing.' },
+        { part: 'foam', do: 'Add plate foam.', why: 'Soaks up ringing from the plate.' },
+        { part: 'case', do: 'Check for loose screws or a ringing case (tap it gently).', why: 'Sometimes the case pings, not the switch.' },
+      ],
+    },
+    {
+      id: 'fix-rattle', goal: 'Fix rattly spacebar / big keys', want: 'My spacebar (or Shift/Enter) sounds rattly or jangly.',
+      graph: 'Long keys score much brighter and louder than the others. Consistency score drops.',
+      cost: 1, effort: 2, tags: ['fix', 'rattle', 'stabilizers'],
+      steps: [
+        { part: 'stabilizers', do: 'Put a little thick lube (dielectric grease) on the ends of the stabilizer wire.', why: 'The wire tapping plastic is the rattle.' },
+        { part: 'stabilizers', do: 'Do the band-aid mod: a small piece of band-aid under where the stabilizer stems land.', why: 'Cushions the hard landing.' },
+        { part: 'stabilizers', do: 'Clip the little legs on the stabilizer stems (if your stabs have them).', why: 'Makes the bottom-out quieter and softer.' },
+      ],
+    },
+    {
+      id: 'fix-hollow', goal: 'Fix hollow / echo sound', want: 'My keyboard sounds empty, like typing on a cardboard box.',
+      graph: 'Long decay time (sound lasts a long time). ThockScope shows "hollow".',
+      cost: 1, effort: 1, tags: ['fix', 'hollow'],
+      steps: [
+        { part: 'foam', do: 'Fill the empty space in the case with foam (even cut-up packing foam works to test).', why: 'Empty space echoes like a drum.' },
+        { part: 'pcb', do: 'Tape mod the back of the PCB.', why: 'Blocks echo from under the board.' },
+        { part: 'case', do: 'Tighten every case screw.', why: 'Loose parts buzz and echo.' },
+        { part: 'desk', do: 'Add a desk mat.', why: 'Less bounce from the desk.' },
+      ],
+    },
+    {
+      id: 'consistent', goal: 'Every key sounds the same', want: 'Some keys sound different from others.',
+      graph: 'The consistency score goes up. Hit-by-hit scores stay close together.',
+      cost: 1, effort: 3, tags: ['fix', 'consistent'],
+      steps: [
+        { part: 'stabilizers', do: 'Tune the stabilizers first — big keys are the usual odd ones out.', why: 'They have the most moving parts.' },
+        { part: 'mount', do: 'Check the plate sits evenly; gasket-mounted boards are more even.', why: 'Keys near screws can sound harsher.' },
+        { part: 'lube', do: 'Lube all switches the same amount.', why: 'Uneven lube = uneven sound.' },
+        { part: 'foam', do: 'Use foam that covers the whole case, not just part of it.', why: 'Echo changes from one spot to another otherwise.' },
+      ],
+    },
+    {
+      id: 'less-scratch', goal: 'Less scratchy noise', want: 'My switches sound scratchy or gritty when I press them.',
+      graph: 'Extra fuzzy energy in the CLACK zone between key presses.',
+      cost: 1, effort: 3, tags: ['fix', 'smooth'],
+      steps: [
+        { part: 'lube', do: 'Open the switches and lube the stem rails and bottom housing.', why: 'Plastic rubbing plastic causes scratch.' },
+        { part: 'switches', do: 'Or try factory-lubed or "smooth" switches.', why: 'No tools needed.' },
+      ],
+    },
+    {
+      id: 'budget-thock', goal: 'Budget thock (cheap mods)', want: 'I want a better sound but I don\'t have much money.',
+      graph: 'Try one step at a time and record after each — watch your score climb.',
+      cost: 1, effort: 1, tags: ['thock', 'budget'],
+      steps: [
+        { part: 'desk', do: 'Free: put a folded towel or mouse pad under the keyboard.', why: 'Instant test of how much the desk adds.' },
+        { part: 'pcb', do: 'Tape mod with painter\'s tape (around $3).', why: 'One of the biggest changes for the price.' },
+        { part: 'foam', do: 'Cut packing foam or shelf liner to fill the case.', why: 'Free or nearly free.' },
+        { part: 'springs', do: 'Bag-lube springs if you hear ping.', why: 'Tiny cost, big fix.' },
+      ],
+    },
+    {
+      id: 'streaming', goal: 'Sounds good on stream / video', want: 'I want my keyboard to sound nice on recordings, not annoying.',
+      graph: 'Avoid tall spikes and a big CLACK zone — those cut through voices.',
+      cost: 2, effort: 2, tags: ['quiet', 'creamy'],
+      steps: [
+        { part: 'switches', do: 'Use linear or silent switches.', why: 'Clicky switches are very loud on mics.' },
+        { part: 'foam', do: 'Add case foam and plate foam.', why: 'Removes echo the mic picks up.' },
+        { part: 'stabilizers', do: 'Tune your spacebar.', why: 'The spacebar is the loudest key on most recordings.' },
+        { part: 'desk', do: 'Point your mic away from the keyboard.', why: 'Distance helps more than any mod.' },
+      ],
+    },
+    {
+      id: 'clicky-fun', goal: 'Loud and clicky', want: 'I like loud, clicky typing!',
+      graph: 'Very bright: a big CLACK zone and a low score. That\'s the goal here.',
+      cost: 2, effort: 1, tags: ['clack', 'loud'],
+      steps: [
+        { part: 'switches', do: 'Use clicky switches (click-bar or click-jacket types).', why: 'They make a click on purpose.' },
+        { part: 'plate', do: 'Use a metal plate.', why: 'Makes the click ring out more.' },
+        { part: 'foam', do: 'Skip the foam.', why: 'Foam would soften the click.' },
+      ],
+    },
+  ];
+
+  /** What a report's diagnosis ids mean, and what to try. */
+  const diagnosis = {
+    'too-few-hits': { kind: 'info', title: 'Type a bit more', text: 'Type at least 10–20 keys (try a sentence) so the results are reliable.', recipes: [] },
+    'clipping':     { kind: 'warn', title: 'Too loud for the mic', text: 'The mic got overloaded, so some sound got chopped off. Move the mic a little farther away.', recipes: [] },
+    'too-quiet':    { kind: 'warn', title: 'Very quiet', text: 'Your key presses are very quiet. Move the mic closer (about 30 cm / 1 foot) and type normally.', recipes: [] },
+    'very-bright':  { kind: 'tip',  title: 'Very bright', text: 'Most of your sound is in the CLACK zone. Love it? Great! Want deeper?', recipes: ['deeper-thock', 'budget-thock', 'quieter'] },
+    'bright':       { kind: 'tip',  title: 'On the clacky side', text: 'More high sound than low. A few mods can round it off.', recipes: ['deeper-thock', 'creamy', 'marbly-poppy'] },
+    'balanced':     { kind: 'tip',  title: 'Nicely balanced', text: 'Your sound sits in the middle — not too deep, not too bright.', recipes: ['creamy', 'deeper-thock', 'crisp-clack'] },
+    'deep':         { kind: 'tip',  title: 'Deep and thocky', text: 'Most of your sound is in the THOCK zone. Want even more, or something crisper?', recipes: ['marbly-poppy', 'crisp-clack'] },
+    'ringy':        { kind: 'warn', title: 'Ringing detected', text: 'Something keeps ringing after the key press — often a spring "ping".', recipes: ['fix-ping'] },
+    'hollow':       { kind: 'warn', title: 'Sounds hollow', text: 'The sound lasts a long time after each press, like an echo in an empty box.', recipes: ['fix-hollow'] },
+    'inconsistent': { kind: 'warn', title: 'Keys sound different', text: 'Some keys sound quite different from others (often the spacebar or big keys).', recipes: ['fix-rattle', 'consistent'] },
+  };
+
+  const recordingTips = [
+    'Put the mic (or phone/laptop) about 30 cm (1 foot) from the keyboard.',
+    'Turn off fans, music and TV — quiet room = cleaner graph.',
+    'Type a normal sentence. Then try just the spacebar 10 times.',
+    'To compare two boards or a mod, keep the mic in the SAME spot.',
+    'Headphones on (or speakers off) so the app doesn\'t hear itself.',
+  ];
+
+  const glossary = [
+    { term: 'Hertz (Hz)', def: 'Wiggles per second. Higher Hz = higher pitch.' },
+    { term: 'Frequency', def: 'Another word for pitch: how fast the sound wiggles.' },
+    { term: 'Spectrum', def: 'A chart showing how loud each pitch is.' },
+    { term: 'Fourier transform', def: 'The math that splits a sound into its pitches (the smoothie un-blender).' },
+    { term: 'FFT', def: 'Fast Fourier Transform — a speedy recipe for doing the Fourier transform on a computer.' },
+    { term: 'Spectrogram', def: 'Many spectrums in a row, showing how sound changes over time.' },
+    { term: 'Decibel (dB)', def: 'A way to measure loudness. +6 dB is about twice as strong.' },
+    { term: 'Thock', def: 'A deep, muted keyboard sound.' },
+    { term: 'Clack', def: 'A bright, sharp keyboard sound.' },
+    { term: 'Brightness (centroid)', def: 'The "balance point" of a sound\'s pitches. Low = deep, high = bright.' },
+    { term: 'Decay', def: 'How long a sound takes to fade away.' },
+    { term: 'Ping', def: 'A tiny metal ring, usually from a switch spring.' },
+  ];
+
+  /** Short labels used around the visualisers. */
+  const ui = {
+    tagline: 'See what your keyboard sounds like.',
+    waveform: 'WAVE — the sound as wiggles',
+    spectrum: 'SPECTRUM — which pitches are inside',
+    spectrogram: 'SPECTROGRAM — pitches over time',
+    profile: 'SOUND PROFILE',
+    demo: 'TRY IT: the smoothie machine',
+    meterLeft: 'CLACK',
+    meterRight: 'THOCK',
+    micHint: 'Press Start Mic, then type on your keyboard!',
+  };
+
+  global.ThockContent = { lessons, profiles, parts, recipes, diagnosis, recordingTips, glossary, ui };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/*
+ * ThockScope — ui.js
+ * Baseline UI: draws the canvases, renders content, wires the buttons.
+ * Colors come from CSS variables (--c-*, --spec-*) so a new design can restyle
+ * everything from CSS alone. Requires fft.js, engine.js, content.js.
+ */
+(function () {
+  'use strict';
+  const E = window.ThockEngine;
+  const C = window.ThockContent;
+  const $ = (sel) => document.querySelector(sel);
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+
+  // ------------------------------------------------------------ theme colors
+  let col = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (n) => cs.getPropertyValue(n).trim();
+    col = {
+      bg: v('--c-bg'), grid: v('--c-grid'), text: v('--c-text'), wave: v('--c-wave'), bar: v('--c-bar'),
+      curve: v('--c-curve'), pin: v('--c-pin'), low: v('--c-low'), mid: v('--c-mid'), high: v('--c-high'),
+      hit: v('--c-hit'), fruits: [v('--c-fruit-1'), v('--c-fruit-2'), v('--c-fruit-3')],
+      spec: [v('--spec-0'), v('--spec-1'), v('--spec-2'), v('--spec-3'), v('--spec-4')],
+      font: v('--font') || 'sans-serif',
+    };
+    buildSpecLUT();
+  }
+
+  // ------------------------------------------------------------ canvas setup
+  const canvases = {};
+  function canvas(id) {
+    if (canvases[id]) return canvases[id];
+    const cv = document.getElementById(id);
+    const c = { cv, ctx: cv.getContext('2d'), w: 0, h: 0, dpr: 1 };
+    canvases[id] = c;
+    fit(c);
+    return c;
+  }
+  function fit(c) {
+    const r = c.cv.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+    if (w === c.w && h === c.h && dpr === c.dpr) return false;
+    c.cv.width = w * dpr; c.cv.height = h * dpr; c.w = w; c.h = h; c.dpr = dpr;
+    c.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return true;
+  }
+
+  // ------------------------------------------------------------ axes
+  const LMIN = Math.log(40), LMAX = Math.log(16000);
+  const xOfHz = (hz, w) => ((Math.log(hz) - LMIN) / (LMAX - LMIN)) * w;
+  const TICKS = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+  const fmtHz = (hz) => (hz >= 1000 ? (hz / 1000).toFixed(hz >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : Math.round(hz) + '');
+
+  function drawFreqBackdrop(c, labels = true) {
+    const { ctx, w, h } = c;
+    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
+    const zoneCol = { low: col.low, mid: col.mid, high: col.high };
+    ctx.font = `600 10px ${col.font}`;
+    for (const b of E.BANDS) {
+      const x0 = xOfHz(b.from, w), x1 = xOfHz(b.to, w);
+      ctx.fillStyle = zoneCol[b.id]; ctx.fillRect(x0, 0, x1 - x0, h);
+      if (labels) { ctx.fillStyle = col.text; ctx.textAlign = 'center'; ctx.fillText(b.nick.toUpperCase(), (x0 + x1) / 2, 12); }
+    }
+    ctx.strokeStyle = col.grid; ctx.lineWidth = 1; ctx.fillStyle = col.text; ctx.textAlign = 'center';
+    for (const t of TICKS) {
+      const x = Math.round(xOfHz(t, w)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, 18); ctx.lineTo(x, h - 14); ctx.stroke();
+      if (labels) ctx.fillText(fmtHz(t) + (t === 50 ? ' Hz' : ''), x, h - 3);
+    }
+  }
+
+  /** Bars + smooth curve on a log frequency axis. */
+  function drawSpectrum(c, hz, barsDb, curveDb, opts = {}) {
+    const { ctx, w, h } = c;
+    const top = opts.top ?? -20, bottom = opts.bottom ?? -100;
+    const y = (db) => 18 + (1 - Math.max(0, Math.min(1, (db - bottom) / (top - bottom)))) * (h - 34);
+    drawFreqBackdrop(c, opts.labels !== false);
+    if (barsDb) {
+      ctx.fillStyle = col.bar;
+      const n = hz.length, bw = w / n;
+      for (let i = 0; i < n; i++) {
+        const x = xOfHz(hz[i], w) - bw / 2, yy = y(barsDb[i]);
+        ctx.fillRect(x + 0.5, yy, Math.max(1, bw - 1.5), h - 16 - yy);
+      }
+    }
+    const line = (arr, color, dash, width) => {
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < hz.length; i++) { const x = xOfHz(hz[i], w), yy = y(arr[i]); i ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
+      ctx.stroke(); ctx.restore();
+    };
+    if (opts.pinDb) line(opts.pinDb, col.pin, [6, 4], 2);
+    if (curveDb) line(curveDb, col.curve, null, 3);
+  }
+
+  function autoRange(arr) {
+    let mx = -Infinity;
+    for (const v of arr) if (isFinite(v) && v > mx) mx = v;
+    if (!isFinite(mx)) mx = -20;
+    return { top: mx + 4, bottom: mx - 60 };
+  }
+
+  function drawWave(c, data, color, opts = {}) {
+    const { ctx, w, h } = c;
+    if (!opts.keep) { ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h); }
+    ctx.strokeStyle = col.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, h / 2 + 0.5); ctx.lineTo(w, h / 2 + 0.5); ctx.stroke();
+    if (!data) return;
+    let gain = opts.gain || 1;
+    if (opts.autoGain) { let m = 0; for (const v of data) m = Math.max(m, Math.abs(v)); gain = m > 1e-4 ? 0.9 / m : 1; }
+    ctx.strokeStyle = color || col.wave; ctx.lineWidth = opts.width || 2; ctx.globalAlpha = opts.alpha || 1;
+    ctx.beginPath();
+    const n = data.length, step = Math.max(1, Math.floor(n / (w * 2)));
+    for (let i = 0, j = 0; i < n; i += step, j++) {
+      const x = (i / (n - 1)) * w, yy = h / 2 - data[i] * gain * (h / 2 - 4);
+      j ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy);
+    }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  // ------------------------------------------------------------ spectrogram
+  let specLUT = null;
+  function hexToRgb(s) {
+    const d = document.createElement('div'); d.style.color = s; document.body.appendChild(d);
+    const m = getComputedStyle(d).color.match(/\d+(\.\d+)?/g) || [0, 0, 0]; d.remove();
+    return m.slice(0, 3).map(Number);
+  }
+  function buildSpecLUT() {
+    const stops = col.spec.map(hexToRgb);
+    specLUT = new Uint8ClampedArray(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const t = (i / 255) * (stops.length - 1), k = Math.min(stops.length - 2, Math.floor(t)), f = t - k;
+      for (let ch = 0; ch < 3; ch++) specLUT[i * 3 + ch] = stops[k][ch] * (1 - f) + stops[k + 1][ch] * f;
+    }
+  }
+  function clearSpectrogram() { const c = canvas('cv-spectrogram'); c.ctx.fillStyle = col.bg; c.ctx.fillRect(0, 0, c.w, c.h); }
+  function pushSpectrogram(binsHz, binsDb) {
+    const c = canvas('cv-spectrogram');
+    const { ctx, cv } = c;
+    const colW = 2 * c.dpr, H = cv.height;
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(cv, colW, 0, cv.width - colW, H, 0, 0, cv.width - colW, H);
+    const img = ctx.createImageData(colW, H);
+    const n = binsDb.length;
+    for (let yy = 0; yy < H; yy++) {
+      const b = Math.min(n - 1, Math.floor((1 - yy / H) * n));
+      const t = Math.max(0, Math.min(255, Math.round(((binsDb[b] + 100) / 75) * 255)));
+      for (let xx = 0; xx < colW; xx++) {
+        const o = (yy * colW + xx) * 4;
+        img.data[o] = specLUT[t * 3]; img.data[o + 1] = specLUT[t * 3 + 1]; img.data[o + 2] = specLUT[t * 3 + 2]; img.data[o + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, cv.width - colW, 0);
+    ctx.restore();
+  }
+  let markHit = false;
+
+  // ------------------------------------------------------------ state + status
+  const status = (msg, isError) => { const s = $('#status'); s.textContent = msg || ''; s.classList.toggle('error', !!isError); };
+  let liveHits = 0;
+  let currentSummary = null;   // what the report shows
+  let pinned = null;           // { label, curveDb, thockScore, profileName }
+  try { pinned = JSON.parse(localStorage.getItem('thockscope.before') || 'null'); } catch (_) { pinned = null; }
+
+  function setButtons(state) {
+    const mic = $('#btn-mic');
+    mic.textContent = state === 'mic' ? 'Listening…' : 'Start Mic';
+    mic.classList.toggle('is-on', state === 'mic');
+    $('#btn-stop').disabled = state === 'idle';
+    const play = $('#btn-play');
+    play.hidden = !E.file;
+    play.textContent = state === 'file-playing' ? 'Pause' : 'Play recording';
+  }
+
+  // ------------------------------------------------------------ profile card
+  function profileText(id) { return C.profiles[id] || { name: '—', text: '' }; }
+  function showProfile(f, live) {
+    const p = profileText(f.profile);
+    $('#prof-name').textContent = p.name;
+    $('#prof-desc').textContent = p.soundsLike ? `Sounds like ${p.soundsLike}.` : '';
+    const needle = $('#meter-needle');
+    needle.style.left = f.thockScore + '%';
+    needle.classList.toggle('is-live', !!live);
+    $('#st-pitch').textContent = Math.round(f.peakHz) + ' Hz';
+    $('#st-bright').textContent = Math.round(f.centroid) + ' Hz';
+    if (f.decayMs != null) $('#st-decay').textContent = f.decayMs + ' ms';
+  }
+
+  function onKeystroke(hit) {
+    liveHits++;
+    $('#st-count').textContent = liveHits;
+    showProfile(hit, true);
+    const card = $('.panel-profile'); card.classList.remove('hit-flash'); void card.offsetWidth; card.classList.add('hit-flash');
+    const c = canvas('cv-hit');
+    drawWave(c, hit.snippet, col.hit, { autoGain: true });
+    markHit = true;
+    // While a file plays, keep showing the file's full offline report.
+    if (E.state === 'mic' && (liveHits % 3 === 0 || liveHits < 10)) renderReport(E.getSessionSummary(), 'live');
+  }
+
+  // ------------------------------------------------------------ report
+  function renderReport(sum, source) {
+    currentSummary = sum;
+    const head = $('#rep-headline'), bands = $('#rep-bands'), list = $('#rep-diagnosis'), cmp = $('#rep-compare');
+    list.innerHTML = ''; bands.innerHTML = '';
+    if (!sum || !sum.count) {
+      head.textContent = source === 'file' ? 'No key presses found in this recording. Try raising Sensitivity and loading it again.' : 'Type some keys to get your report.';
+      cmp.hidden = true;
+      drawReportCurve(null);
+      return;
+    }
+    head.textContent = `${sum.profileName} · score ${sum.thockScore}/100 · ${sum.count} keys · main pitch ${sum.peakHz} Hz`;
+
+    const pct = (v) => Math.round(v * 100);
+    [['low', 'band-low', 'Low'], ['mid', 'band-mid', 'Mid'], ['high', 'band-high', 'High']].forEach(([k, cls, name]) => {
+      const s = el('span', cls, pct(sum.bands[k]) >= 14 ? `${name} ${pct(sum.bands[k])}%` : '');
+      s.style.width = Math.max(4, pct(sum.bands[k])) + '%';
+      s.title = `${name}: ${pct(sum.bands[k])}% of the sound energy`;
+      bands.appendChild(s);
+    });
+
+    if (pinned) {
+      const d = sum.thockScore - pinned.thockScore;
+      cmp.hidden = false;
+      cmp.textContent = d === 0 ? `Same score as "Before" (${pinned.thockScore}).`
+        : `${Math.abs(d)} points ${d > 0 ? 'deeper (more thock)' : 'brighter (more clack)'} than "Before" (${pinned.thockScore}, ${pinned.profileName}).`;
+    } else cmp.hidden = true;
+
+    for (const id of sum.diagnosis) {
+      const d = C.diagnosis[id]; if (!d) continue;
+      const li = el('li', d.kind);
+      li.appendChild(el('strong', null, d.title));
+      li.appendChild(el('span', null, d.text + ' '));
+      if (d.recipes.length) {
+        const wrap = el('div');
+        d.recipes.forEach((rid) => {
+          const r = C.recipes.find((x) => x.id === rid); if (!r) return;
+          const b = el('button', 'recipe-link', 'Recipe: ' + r.goal); b.type = 'button';
+          b.addEventListener('click', () => showRecipe(rid));
+          wrap.appendChild(b);
+        });
+        li.appendChild(wrap);
+      }
+      list.appendChild(li);
+    }
+    drawReportCurve(sum);
+  }
+
+  function drawReportCurve(sum) {
+    const c = canvas('cv-report');
+    if (!sum || !sum.count) { drawSpectrum(c, E.summarize([]).binsHz, null, null, { pinDb: pinned && pinned.curveDb }); return; }
+    drawSpectrum(c, sum.binsHz, sum.binsDb, sum.curveDb, { ...autoRange(sum.curveDb), pinDb: pinned && pinned.curveDb });
+  }
+
+  function pinCurrent() {
+    if (!currentSummary || !currentSummary.count) { status('Record or load some typing first, then save it as "Before".'); return; }
+    pinned = { curveDb: Array.from(currentSummary.curveDb), thockScore: currentSummary.thockScore, profileName: currentSummary.profileName };
+    try { localStorage.setItem('thockscope.before', JSON.stringify(pinned)); } catch (_) {}
+    $('#btn-unpin').hidden = false;
+    status('Saved as "Before" (dashed line). Now make a change and record again to compare.');
+    renderReport(currentSummary);
+  }
+  function unpin() {
+    pinned = null;
+    try { localStorage.removeItem('thockscope.before'); } catch (_) {}
+    $('#btn-unpin').hidden = true;
+    renderReport(currentSummary);
+  }
+
+  // ------------------------------------------------------------ file overview
+  function drawOverview() {
+    if (!E.file) return;
+    const c = canvas('cv-overview'); fit(c);
+    const { ctx, w, h } = c, rep = E.file.report, ov = rep.overview, n = ov.length / 2;
+    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
+    let mx = 1e-4; for (const v of ov) mx = Math.max(mx, Math.abs(v));
+    ctx.fillStyle = col.wave;
+    for (let i = 0; i < n; i++) {
+      const x = (i / n) * w, y0 = h / 2 - (ov[i * 2 + 1] / mx) * (h / 2 - 4), y1 = h / 2 - (ov[i * 2] / mx) * (h / 2 - 4);
+      ctx.fillRect(x, y0, Math.max(1, w / n), Math.max(1, y1 - y0));
+    }
+    ctx.fillStyle = col.hit;
+    for (const hit of rep.hits) ctx.fillRect((hit.time / rep.duration) * w - 1, 0, 2, 8);
+    const ph = E.state.startsWith('file') ? E._playhead() : E.file.offset;
+    if (ph > 0) { ctx.fillStyle = col.curve; ctx.fillRect((ph / rep.duration) * w - 1, 0, 2, h); }
+  }
+
+  // ------------------------------------------------------------ live loop
+  E.on('frame', (fr) => {
+    drawWave(canvas('cv-wave'), fr.waveform, col.wave, { gain: 3 });
+    drawSpectrum(canvas('cv-spectrum'), fr.binsHz, fr.binsDb, fr.curveDb, { pinDb: null });
+    pushSpectrogram(fr.binsHz, fr.binsDb);
+    if (markHit) {
+      markHit = false;
+      const c = canvas('cv-spectrogram'); c.ctx.fillStyle = col.hit; c.ctx.fillRect(c.w - 2, 0, 2, 4);
+    }
+    if (fr.playhead != null) drawOverview();
+  });
+  E.on('keystroke', onKeystroke);
+  E.on('state', (s) => {
+    setButtons(s);
+    if (s === 'mic') status('Listening… type on your keyboard! (Headphones on so the app doesn\'t hear itself.)');
+    else if (s === 'file-playing') status('Playing your recording…');
+    else if (s === 'idle' && !E.file) status('Stopped.');
+  });
+  E.on('ended', () => { status('Finished playing.'); drawOverview(); });
+  E.on('file', (rep) => {
+    $('#file-panel').hidden = false;
+    $('#file-name').textContent = rep.name;
+    renderReport(rep.summary, 'file');
+    if (rep.summary.count) showProfile({ ...rep.summary, centroid: rep.summary.centroid }, false);
+    $('#st-count').textContent = rep.summary.count;
+    setButtons(E.state);
+    requestAnimationFrame(drawOverview);
+  });
+
+  // ------------------------------------------------------------ controls
+  $('#btn-mic').addEventListener('click', async () => {
+    if (E.state === 'mic') { E.stop(); return; }
+    try {
+      status('Asking for the microphone…');
+      await E.startMic();
+      liveHits = 0; E.resetSession(); $('#st-count').textContent = '0';
+      clearSpectrogram();
+    } catch (err) {
+      const msg = err && err.name === 'NotAllowedError' ? 'Microphone permission was blocked. Allow it in your browser\'s address bar and try again.'
+        : err && err.name === 'NotFoundError' ? 'No microphone found. Plug one in, or upload a recording instead.'
+        : (err && err.message) || 'Could not start the microphone.';
+      status(msg, true);
+    }
+  });
+  $('#file-input').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try {
+      status(`Analysing ${f.name}…`);
+      const rep = await E.loadFile(f);
+      status(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Try raising Sensitivity, then load the file again.');
+    } catch (err) {
+      status('Could not read that file. Try a .wav, .mp3, .m4a or .ogg recording.', true);
+      console.error(err);
+    }
+    e.target.value = '';
+  });
+  $('#btn-play').addEventListener('click', () => {
+    if (E.state === 'file-playing') E.pauseFile();
+    else { clearSpectrogram(); E.playFile(); }
+  });
+  $('#btn-stop').addEventListener('click', () => { E.stop(); if (E.file) E.file.offset = 0; drawOverview(); });
+  $('#sens').addEventListener('input', (e) => E.setSensitivity(parseFloat(e.target.value)));
+  $('#btn-reset').addEventListener('click', () => {
+    E.resetSession(); liveHits = 0; $('#st-count').textContent = '0';
+    renderReport(null); clearSpectrogram();
+    $('#prof-name').textContent = '—'; $('#prof-desc').textContent = C.ui.micHint;
+    $('#meter-needle').classList.remove('is-live');
+  });
+  $('#btn-pin').addEventListener('click', pinCurrent);
+  $('#btn-unpin').addEventListener('click', unpin);
+  $('#btn-unpin').hidden = !pinned;
+  $('#cv-overview').addEventListener('click', (e) => {
+    if (!E.file) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const t = ((e.clientX - r.left) / r.width) * E.file.report.duration;
+    clearSpectrogram(); E.playFile(t);
+  });
+
+  // ------------------------------------------------------------ Fourier demo
+  const fruits = [
+    { name: 'Strawberry', role: 'low thump', hz: 150, amp: 1 },
+    { name: 'Banana', role: 'middle body', hz: 500, amp: 0.6 },
+    { name: 'Blueberry', role: 'high click', hz: 1400, amp: 0.35 },
+  ];
+  function renderDemoControls() {
+    const box = $('#demo-controls');
+    fruits.forEach((f, i) => {
+      const lab = el('label', 'fruit');
+      const dot = el('span', 'fruit-dot'); dot.style.background = col.fruits[i];
+      const range = el('input'); range.type = 'range'; range.min = 0; range.max = 1; range.step = 0.05; range.value = f.amp;
+      range.setAttribute('aria-label', `${f.name} amount`);
+      range.addEventListener('input', () => { f.amp = parseFloat(range.value); drawDemo(); });
+      lab.append(dot, el('span', null, `${f.name} — ${f.hz} Hz (${f.role})`), range);
+      box.appendChild(lab);
+    });
+  }
+  function drawDemo() {
+    const mix = E.demoMix(fruits.map((f) => ({ hz: f.hz, amp: f.amp })), { waveMs: 20 });
+    const cw = canvas('cv-demo-wave'); fit(cw);
+    drawWave(cw, null);
+    fruits.forEach((f, i) => {
+      if (!f.amp) return;
+      const one = E.demoMix([{ hz: f.hz, amp: f.amp }], { waveMs: 20 }).wave;
+      drawWave(cw, one, col.fruits[i], { keep: true, gain: 0.33, width: 1.5, alpha: 0.6 });
+    });
+    drawWave(cw, mix.wave, col.wave, { keep: true, gain: 0.33, width: 2.5 });
+
+    const cs = canvas('cv-demo-spec'); fit(cs);
+    const { ctx, w, h } = cs, maxHz = 2000;
+    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
+    ctx.font = `600 10px ${col.font}`; ctx.textAlign = 'center';
+    ctx.strokeStyle = col.grid; ctx.fillStyle = col.text;
+    for (let t = 0; t <= maxHz; t += 250) { const x = (t / maxHz) * w; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 14); ctx.stroke(); if (t % 500 === 0) { ctx.textAlign = t === 0 ? 'left' : t === maxHz ? 'right' : 'center'; ctx.fillText(t + (t ? '' : ' Hz'), x, h - 3); } }
+    const spec = mix.spectrum, n = Math.floor(maxHz / mix.binHz);
+    for (let k = 1; k < n; k++) {
+      const hz = k * mix.binHz;
+      let ci = -1; fruits.forEach((f, i) => { if (Math.abs(f.hz - hz) < 40) ci = i; });
+      ctx.fillStyle = ci >= 0 ? col.fruits[ci] : col.bar;
+      const bh = Math.min(1, spec[k]) * (h - 22);
+      ctx.fillRect((hz / maxHz) * w - 1.5, h - 14 - bh, 3, bh);
+    }
+  }
+
+  // ------------------------------------------------------------ static content
+  function renderContent() {
+    document.querySelectorAll('[data-text]').forEach((n) => {
+      const key = n.getAttribute('data-text').split('.');
+      let v = C; for (const k of key) v = v && v[k];
+      if (typeof v === 'string') n.textContent = v;
+    });
+    document.querySelectorAll('[data-lesson]').forEach((n) => {
+      const l = C.lessons.find((x) => x.id === n.getAttribute('data-lesson'));
+      if (l) n.textContent = l.short;
+    });
+
+    const lessons = $('#lessons');
+    C.lessons.forEach((l, i) => {
+      const card = el('article', 'card lesson');
+      card.appendChild(el('h3', null, `${i + 1}. ${l.title}`));
+      card.appendChild(el('p', 'short', l.short));
+      const d = el('details'); d.appendChild(el('summary', null, 'Tell me more')); d.appendChild(el('p', null, l.body));
+      card.appendChild(d);
+      lessons.appendChild(card);
+    });
+
+    const filters = [
+      ['all', 'All'], ['thock', 'Thock'], ['clack', 'Clack'], ['creamy', 'Creamy'], ['quiet', 'Quiet'], ['fix', 'Fix a problem'], ['budget', 'Cheap mods'],
+    ];
+    const chipBox = $('#recipe-filters');
+    filters.forEach(([tag, label], i) => {
+      const b = el('button', 'chip' + (i === 0 ? ' is-active' : ''), label); b.type = 'button'; b.dataset.tag = tag;
+      b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+      b.addEventListener('click', () => {
+        chipBox.querySelectorAll('.chip').forEach((c) => { c.classList.toggle('is-active', c === b); c.setAttribute('aria-pressed', c === b ? 'true' : 'false'); });
+        document.querySelectorAll('.recipe').forEach((card) => { card.hidden = tag !== 'all' && !card.dataset.tags.split(' ').includes(tag); });
+      });
+      chipBox.appendChild(b);
+    });
+
+    const partName = (id) => (C.parts.find((p) => p.id === id) || { name: id }).name;
+    const list = $('#recipe-list');
+    C.recipes.forEach((r) => {
+      const card = el('article', 'card recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = r.tags.join(' ');
+      card.appendChild(el('h3', null, r.goal));
+      card.appendChild(el('p', 'recipe-want', `"${r.want}"`));
+      card.appendChild(el('p', 'recipe-meta', `Cost: ${'$'.repeat(r.cost)} · Effort: ${['', 'Easy', 'Medium', 'Big project'][r.effort]}`));
+      const ol = el('ol', 'recipe-steps');
+      r.steps.forEach((s) => {
+        const li = el('li');
+        li.appendChild(el('span', 'part-tag', partName(s.part)));
+        li.appendChild(document.createTextNode(s.do));
+        li.appendChild(el('span', 'why', 'Why: ' + s.why));
+        ol.appendChild(li);
+      });
+      card.appendChild(ol);
+      card.appendChild(el('p', 'recipe-graph', 'On the graph: ' + r.graph));
+      list.appendChild(card);
+    });
+
+    const parts = $('#part-list');
+    C.parts.forEach((p) => {
+      const card = el('article', 'card part');
+      card.appendChild(el('h3', null, p.name));
+      card.appendChild(el('p', 'short', p.what));
+      card.appendChild(el('p', null, p.sound));
+      card.appendChild(el('p', 'part-tip', 'Tip: ' + p.tip));
+      parts.appendChild(card);
+    });
+
+    const tips = $('#tips'); C.recordingTips.forEach((t) => tips.appendChild(el('li', null, t)));
+    const gl = $('#glossary'); C.glossary.forEach((g) => { gl.appendChild(el('dt', null, g.term)); gl.appendChild(el('dd', null, g.def)); });
+  }
+
+  function showRecipe(id) {
+    document.querySelector('#recipe-filters .chip[data-tag="all"]').click();
+    const card = document.getElementById('recipe-' + id); if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('is-highlight'); setTimeout(() => card.classList.remove('is-highlight'), 2500);
+  }
+
+  // ------------------------------------------------------------ idle drawing + resize
+  function drawIdle() {
+    drawWave(canvas('cv-wave'), null);
+    drawSpectrum(canvas('cv-spectrum'), E.summarize([]).binsHz, null, null);
+    clearSpectrogram();
+    drawWave(canvas('cv-hit'), null);
+    drawReportCurve(currentSummary);
+    drawOverview();
+    drawDemo();
+  }
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { Object.values(canvases).forEach(fit); if (E.state === 'idle' || E.state === 'file-paused') drawIdle(); else { drawReportCurve(currentSummary); drawDemo(); } }, 120);
+  });
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); drawIdle(); });
+
+  readColors();
+  renderContent();
+  renderDemoControls();
+  setButtons('idle');
+  drawIdle();
+  if (!(window.AudioContext || window.webkitAudioContext)) status('This browser can\'t do live audio. Try Chrome, Edge, Firefox or Safari.', true);
+
+  // Small hook for themes / tests.
+  window.ThockUI = { readColors, redraw: drawIdle, showRecipe, renderReport };
+})();
+
+</script>
+</body>
+</html>

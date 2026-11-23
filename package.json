@@ -1,0 +1,12 @@
+{
+  "name": "thockscope",
+  "version": "0.1.0",
+  "description": "See what your keyboard sounds like: a live frequency analyzer for custom mechanical keyboards.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "node tools/serve.mjs 8080",
+    "build": "node tools/build.mjs",
+    "test": "node tests/engine.test.js"
+  }
+}
