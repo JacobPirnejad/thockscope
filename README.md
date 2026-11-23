@@ -15,11 +15,13 @@ It's written for curious middle-schoolers: short sentences, no math needed.
 
 ## Use it
 
-**Option 1 – one file (easiest):** download [`dist/ThockScope.html`](dist/ThockScope.html) and double-click it. It works offline and nothing is uploaded anywhere.
+**▶ Try it online: https://jacobpirnejad.github.io/thockscope/**
 
-**Option 2 – from the source:** download/clone this repo and open `index.html` in Chrome, Edge, Firefox or Safari.
+**Download it – one file:** download [`dist/ThockScope.html`](dist/ThockScope.html) and double-click it. It works offline and nothing is uploaded anywhere.
 
-**Option 3 – local server:** `npm start` then open http://localhost:8080.
+**Or from the source:** download/clone this repo and open `index.html` in Chrome, Edge, Firefox or Safari.
+
+**Or with a local server:** `npm start` then open http://localhost:8080.
 
 Then press **Start Mic** and type, or **Upload Recording** (wav, mp3, m4a, ogg…).
 
