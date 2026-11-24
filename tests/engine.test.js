@@ -45,8 +45,8 @@ console.log('demo: 150Hz', at(150).toFixed(2), '900Hz', at(900).toFixed(2), '500
 const checks = {
   'thock: 12 hits': thock.count === 12,
   'clack: 12 hits': clack.count === 12,
-  'thock scores deep': thock.thockScore >= 62,
-  'clack scores bright': clack.thockScore < 45,
+  'thock scores deep': thock.thockScore >= 60,
+  'clack scores bright': clack.thockScore < 38,
   'ping flagged ringy': ping.diagnosis.includes('ringy'),
   'thock not ringy': !thock.diagnosis.includes('ringy'),
   'clack not ringy': !clack.diagnosis.includes('ringy'),

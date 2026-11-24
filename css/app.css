@@ -291,3 +291,16 @@ body { color: var(--chalk); background-color: var(--paper);
 
 /* keyboard focus on the Upload button (the real file input is visually hidden) */
 #file-input:focus-visible + .btn { outline: 3px solid var(--cyan); outline-offset: 3px; }
+
+/* example recordings row (header) */
+.examples-row { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 12px; border-top: 2px dashed var(--edge); position: relative; }
+.examples-label { font-family: var(--font-type); font-size: .9rem; color: var(--caption); }
+.example-chips { margin: 0; }
+.example-chips .chip.is-loading { opacity: .6; cursor: progress; }
+.example-note { margin: 10px 0 0; font-size: .9rem; color: var(--chalk-dim); }
+.example-note b { color: var(--chalk); }
+.example-note a, .credits a { color: var(--cyan); }
+.credits { margin-top: 8px; }
+
+/* a recording playing also lights the status dot (only the mic lights the Start Mic button) */
+[data-live="play"] .status-dot { opacity: 1; }

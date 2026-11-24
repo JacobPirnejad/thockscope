@@ -1,0 +1,50 @@
+[
+  {
+    "id": "linear",
+    "label": "Linear",
+    "title": "Linear switches",
+    "about": "Smooth switches with no bump. Listen for a steady, even sound.",
+    "file": "linear.mp3",
+    "credit": { "title": "keyboard2.wav", "author": "samchitto", "url": "https://freesound.org/people/samchitto/sounds/696040/", "license": "CC0" }
+  },
+  {
+    "id": "clicky-blue",
+    "label": "Clicky",
+    "title": "Clicky (Cherry MX Blue)",
+    "about": "These switches click on purpose. Watch the CLACK zone light up.",
+    "file": "clicky-blue.mp3",
+    "credit": { "title": "Typing on a keyboard", "author": "SamsterBirdies", "url": "https://freesound.org/people/SamsterBirdies/sounds/489424/", "license": "CC0" }
+  },
+  {
+    "id": "tactile-violet",
+    "label": "Tactile",
+    "title": "Tactile (Hako Violet, WhiteFox board)",
+    "about": "A small bump you can feel, but no click.",
+    "file": "tactile-violet.mp3",
+    "credit": { "title": "Keyboard Typing 10 (WhiteFox, Mechanical)", "author": "grcekh", "url": "https://freesound.org/people/grcekh/sounds/546167/", "license": "CC0" }
+  },
+  {
+    "id": "vintage-alps",
+    "label": "Vintage Alps",
+    "title": "Vintage board (lubed Alps switches, PBT caps)",
+    "about": "An old-school keyboard with modded switches and thick PBT keycaps.",
+    "file": "vintage-alps.mp3",
+    "credit": { "title": "Keyboard typing sounds: modded Omnikey 101", "author": "zrrion", "url": "https://freesound.org/people/zrrion/sounds/685984/", "license": "CC0" }
+  },
+  {
+    "id": "leopold-mic-a",
+    "label": "Mic spot A",
+    "title": "Same keyboard, mic spot A (above the left side)",
+    "about": "Leopold FC660M with MX Brown switches. Compare with mic spot B: same keyboard, different mic spot!",
+    "file": "leopold-mic-a.mp3",
+    "credit": { "title": "Mechanical Keyboard Typing (Bass Version)", "author": "stu556", "url": "https://freesound.org/people/stu556/sounds/450281/", "license": "CC0" }
+  },
+  {
+    "id": "leopold-mic-b",
+    "label": "Mic spot B",
+    "title": "Same keyboard, mic spot B (in front of the spacebar)",
+    "about": "The very same keyboard as mic spot A. Any difference you see comes from where the mic was. That's why fair tests matter!",
+    "file": "leopold-mic-b.mp3",
+    "credit": { "title": "Mechanical Keyboard Typing (Treble Version)", "author": "stu556", "url": "https://freesound.org/people/stu556/sounds/450282/", "license": "CC0" }
+  }
+]

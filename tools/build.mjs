@@ -26,9 +26,17 @@ html = await replaceAsync(html, /src="css\/assets\/([\w-]+\.svg)"/g, async (_, n
 const leftovers = html.match(/(["'(])(css\/)?assets\//g);
 if (leftovers) throw new Error(`Un-inlined asset references remain: ${leftovers.length}`);
 
+// Example recordings: inline every js/examples/<id>.js where index.html marks the spot.
+const examples = JSON.parse(await readFile(join(root, 'examples', 'examples.json'), 'utf8'));
+const exampleScripts = [];
+for (const ex of examples) exampleScripts.push('<script>\n' + await readFile(join(root, 'js', 'examples', ex.id + '.js'), 'utf8') + '</script>');
+const exMarker = /<!-- example-audio:[^>]*-->/;
+if (!exMarker.test(html)) throw new Error('example-audio marker missing from index.html');
+html = html.replace(exMarker, () => exampleScripts.join('\n'));
+
 await mkdir(join(root, 'dist'), { recursive: true });
 await writeFile(join(root, 'dist', 'ThockScope.html'), html);
-console.log(`dist/ThockScope.html  (${(html.length / 1024).toFixed(0)} KB, ${inlined} images inlined)`);
+console.log(`dist/ThockScope.html  (${(html.length / 1024).toFixed(0)} KB, ${inlined} images, ${examples.length} example recordings inlined)`);
 
 async function replaceAsync(str, re, fn) {
   const parts = [];

@@ -65,6 +65,8 @@ E.on('session-reset', () => {});
 | `thockScore` | 0 (sharp clack) … 100 (deep thock) |
 | `profile` | id from `E.PROFILES`: `deep-thock`, `thock`, `creamy`, `clack`, `sharp-clack` |
 
+Profiles (thockScore): Sharp Clack < 15 ≤ Clack < 38 ≤ Creamy < 60 ≤ Thock < 82 ≤ Deep Thock. The score maps brightness on a log scale from 6 kHz (0) to 1 kHz (100), calibrated on the real example recordings; `peakHz` ignores rumble below 120 Hz.
+
 `E.BANDS` = Low 80–700 Hz "THOCK zone", Mid 700–2500 Hz "Body zone", High 2500–12000 Hz "CLACK zone".
 
 ### `keystroke` (hit)

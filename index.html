@@ -44,6 +44,10 @@
       </label>
       <p class="status" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="status-text"></span></p>
     </div>
+    <div class="examples-row" id="examples-row" hidden>
+      <span class="examples-label">No keyboard handy? Try a real one:</span>
+      <div id="example-list" class="chips example-chips" role="group" aria-label="Example recordings"></div>
+    </div>
   </header>
 
   <main class="ts-grid">
@@ -98,6 +102,7 @@
       <h2 class="panel-title" id="h-file">Your recording</h2>
       <p class="caption"><b id="file-name"></b> · Each pink tick is a key press ThockScope found. Tap the recording to play from there.</p>
       <div class="chart chart-overview"><canvas id="cv-overview" aria-label="Whole recording, with each detected key press marked"></canvas></div>
+      <p class="example-note" id="example-note" hidden></p>
     </section>
 
     <section class="panel p-report" aria-labelledby="h-report">
@@ -187,6 +192,9 @@
         <ul id="tips" class="tips"></ul>
         <dl id="glossary" class="glossary"></dl>
       </div>
+      <h3 class="sub-title">Example sound credits</h3>
+      <p class="caption">The example recordings come from <a href="https://freesound.org" target="_blank" rel="noopener">Freesound</a>. Their makers shared them under CC0, which means anyone may use them. Thank you!</p>
+      <ul id="example-credits" class="tips credits"></ul>
     </section>
   </main>
 
@@ -196,6 +204,9 @@
 <script src="js/fft.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/content.js"></script>
+<script src="js/examples.js"></script>
+<!-- example-audio: tools/build.mjs inlines js/examples/*.js here for the one-file version -->
+
 <script src="js/ui.js"></script>
 </body>
 </html>

@@ -380,8 +380,7 @@
     }
   });
   E.on('state', (s) => {
-    const live = s === 'mic' || s === 'file-playing';
-    root.setAttribute('data-live', live ? 'on' : 'off');
+    root.setAttribute('data-live', s === 'mic' ? 'on' : s === 'file-playing' ? 'play' : 'off');
     $('#mic-text').textContent = s === 'mic' ? 'Stop Mic' : 'Start Mic';
     const play = $('#btn-play');
     play.hidden = !E.file;
@@ -425,6 +424,7 @@
     const f = e.target.files && e.target.files[0]; if (!f) return;
     try {
       setStatus(`Analysing ${f.name}…`);
+      setActiveExample(null);
       resetDisplay();
       const rep = await E.loadFile(f);
       setStatus(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Try sliding Sensitivity up.');
@@ -451,7 +451,7 @@
     }, 250);
   });
   $('#btn-reset').addEventListener('click', () => {
-    E.stop(); E.unloadFile();
+    E.stop(); E.unloadFile(); setActiveExample(null);
     $('#file-panel').hidden = true; $('#btn-play').hidden = true;
     E.resetSession(); liveHits = 0;
     renderReport(null); resetDisplay(); clearProfile(); drawLive();
@@ -467,6 +467,70 @@
     resetDisplay();
     E.playFile(((e.clientX - r.left) / r.width) * E.file.report.duration);
   });
+
+  // ------------------------------------------------------------ example recordings (real keyboards, CC0, see examples/)
+  const X = window.ThockExamples || { list: [], loaded: {} };
+  /** The audio lives in js/examples/<id>.js and is only loaded when clicked (works from disk too). */
+  function loadExampleData(id) {
+    if (X.loaded[id]) return Promise.resolve(X.loaded[id]);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = `js/examples/${id}.js`;
+      s.onload = () => (X.loaded[id] ? resolve(X.loaded[id]) : reject(new Error('example file was empty')));
+      s.onerror = () => reject(new Error('example file not found'));
+      document.head.appendChild(s);
+    });
+  }
+  function setActiveExample(id) {
+    document.querySelectorAll('#example-list .chip').forEach((c) => {
+      const on = c.dataset.id === id;
+      c.classList.toggle('is-active', on); c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const note = $('#example-note'), ex = id && X.list.find((e) => e.id === id);
+    note.textContent = '';
+    note.hidden = !ex;
+    if (!ex) return;
+    const a = el('a', null, `"${ex.credit.title}" by ${ex.credit.author}`);
+    a.href = ex.credit.url; a.target = '_blank'; a.rel = 'noopener';
+    note.append(el('b', null, ex.title + '. '), document.createTextNode(ex.about + ' Recording: '), a, document.createTextNode(` (${ex.credit.license}, via Freesound).`));
+  }
+  async function playExample(id, chip) {
+    const ex = X.list.find((e) => e.id === id);
+    if (!ex || chip.classList.contains('is-loading')) return;
+    chip.classList.add('is-loading');
+    try {
+      if (E.state === 'mic') E.stop();
+      setStatus(`Loading example: ${ex.title}…`);
+      const bin = atob(await loadExampleData(id));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      resetDisplay();
+      const rep = await E.loadFile(new File([bytes], ex.title + '.mp3', { type: 'audio/mpeg' }));
+      setActiveExample(id);
+      E.playFile(0);
+      setStatus(`Playing example: ${ex.title}. ThockScope found ${rep.summary.count} key presses.`);
+    } catch (err) {
+      console.warn('ThockScope could not load example', id, err);
+      setStatus('Could not load that example. Try another one.', true);
+    } finally {
+      chip.classList.remove('is-loading');
+    }
+  }
+  function renderExamples() {
+    if (!X.list.length) return;
+    const box = $('#example-list'), credits = $('#example-credits');
+    X.list.forEach((ex) => {
+      const b = el('button', 'chip', ex.label); b.type = 'button'; b.dataset.id = ex.id;
+      b.title = ex.title; b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => playExample(ex.id, b));
+      box.appendChild(b);
+      const li = el('li'), a = el('a', null, `"${ex.credit.title}"`);
+      a.href = ex.credit.url; a.target = '_blank'; a.rel = 'noopener';
+      li.append(el('b', null, ex.label + ': '), a, document.createTextNode(` by ${ex.credit.author} (${ex.credit.license})`));
+      credits.appendChild(li);
+    });
+    $('#examples-row').hidden = false;
+  }
 
   // ------------------------------------------------------------ sample key presses (so the page isn't empty)
   /** Synthesizes ~4 s of thocky typing and runs it through the real analysis. */
@@ -649,6 +713,7 @@
   readColors();
   renderContent();
   renderDemoControls();
+  renderExamples();
   renderReport(null);
   try { showSample(); } catch (e) { console.error(e); clearProfile(); setStatus(C.ui.idle); }
   drawLive();

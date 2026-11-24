@@ -180,7 +180,7 @@
     },
     {
       id: 'creamy', goal: 'Creamy & smooth', want: 'I want a smooth, soft sound with no harsh edges.',
-      graph: 'A gentle hill-shaped curve with no sharp spikes. Score in the middle (45–62).',
+      graph: 'A gentle hill-shaped curve with no sharp spikes. Score in the middle (38–60).',
       cost: 2, effort: 3, tags: ['creamy', 'smooth'],
       steps: [
         { part: 'switches', do: 'Use linear switches with a POM or UHMWPE stem.', why: 'These plastics are naturally smooth and quiet.' },
@@ -355,7 +355,7 @@
   };
 
   /** Brightness word from the centroid (Hz). */
-  function brightnessWord(hz) { return hz < 1500 ? 'Mellow' : hz < 2300 ? 'Medium' : 'Bright'; }
+  function brightnessWord(hz) { return hz < 2000 ? 'Mellow' : hz < 3600 ? 'Medium' : 'Bright'; } // calibrated on the real example recordings
 
   global.ThockContent = { lessons, profiles, parts, recipes, diagnosis, recordingTips, glossary, ui, brightnessWord };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -19,14 +19,18 @@
   ];
   const ANALYSIS_MIN_HZ = 80;
   const ANALYSIS_MAX_HZ = 12000;
+  const PITCH_MIN_HZ = 120;          // below this is desk / handling rumble, not the key's note
+  // thockScore scale, calibrated on real keyboard recordings (CC0 examples, see examples/):
+  // brightness (centroid) ~1 kHz = very deep thock, ~6 kHz = clicky switch.
+  const THOCK_HZ = 1000, CLACK_HZ = 6000;
 
   /** Sound-profile labels, from deepest to brightest. score = thockScore range. */
   const PROFILES = [
-    { id: 'deep-thock',  name: 'Deep Thock',  min: 80, max: 101 },
-    { id: 'thock',       name: 'Thock',       min: 62, max: 80 },
-    { id: 'creamy',      name: 'Creamy',      min: 45, max: 62 },
-    { id: 'clack',       name: 'Clack',       min: 28, max: 45 },
-    { id: 'sharp-clack', name: 'Sharp Clack', min: -1, max: 28 },
+    { id: 'deep-thock',  name: 'Deep Thock',  min: 82, max: 101 },
+    { id: 'thock',       name: 'Thock',       min: 60, max: 82 },
+    { id: 'creamy',      name: 'Creamy',      min: 38, max: 60 },
+    { id: 'clack',       name: 'Clack',       min: 15, max: 38 },
+    { id: 'sharp-clack', name: 'Sharp Clack', min: -1, max: 15 },
   ];
 
   const DISPLAY_BINS = 96;           // bars on the spectrum display
@@ -71,7 +75,7 @@
 
     // Main pitch: loudest point of a lightly smoothed spectrum (less jumpy than a raw max).
     let peakHz = 0, best = -1;
-    for (let k = k0 + 1; k < k1; k++) {
+    for (let k = Math.max(k0 + 1, Math.floor(PITCH_MIN_HZ / binHz)); k < k1; k++) {
       const v = mags[k - 1] + 2 * mags[k] + mags[k + 1];
       if (v > best) { best = v; peakHz = k * binHz; }
     }
@@ -79,7 +83,7 @@
     // thockScore: 100 = very deep, 0 = very bright. Mostly from brightness (centroid),
     // nudged by how much energy sits in the THOCK zone.
     const cScore = centroid > 0
-      ? ((Math.log(5000) - Math.log(centroid)) / (Math.log(5000) - Math.log(800))) * 100
+      ? ((Math.log(CLACK_HZ) - Math.log(centroid)) / (Math.log(CLACK_HZ) - Math.log(THOCK_HZ))) * 100
       : 50;
     const lScore = (bands.low / 0.6) * 100;
     const thockScore = Math.round(clamp(0.7 * cScore + 0.3 * lScore, 0, 100));
@@ -301,13 +305,13 @@
     if (n < 8) diagnosis.push('too-few-hits');
     if (clipped) diagnosis.push('clipping');
     if (peakDb < -45) diagnosis.push('too-quiet');
-    if (thockScore < 28) diagnosis.push('very-bright');
-    else if (thockScore < 45) diagnosis.push('bright');
-    else if (thockScore >= 62) diagnosis.push('deep');
+    if (thockScore < 15) diagnosis.push('very-bright');
+    else if (thockScore < 38) diagnosis.push('bright');
+    else if (thockScore >= 60) diagnosis.push('deep');
     else diagnosis.push('balanced');
     if (ringFraction > 0.25) diagnosis.push('ringy');
     if (decayMs > 140) diagnosis.push('hollow');
-    if (spread > 14 && n >= 8) diagnosis.push('inconsistent');
+    if (spread > 25 && n >= 8) diagnosis.push('inconsistent');
 
     return {
       count: n,

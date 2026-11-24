@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "start": "node tools/serve.mjs 8080",
-    "build": "node tools/build.mjs",
-    "test": "node tests/engine.test.js"
+    "build": "node tools/make-examples.mjs && node tools/build.mjs",
+    "test": "node tests/engine.test.js",
+    "examples": "node tools/make-examples.mjs"
   }
 }
