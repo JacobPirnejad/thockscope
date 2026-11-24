@@ -23,6 +23,8 @@ E.pauseFile();
 E.stop();                      // stops mic or playback
 E.setSensitivity(0.5);         // 0..1 keystroke detection sensitivity
 E.getSessionSummary();         // Summary of everything heard live since last reset
+E.reanalyzeFile();             // re-run the loaded recording (e.g. after setSensitivity); emits 'file'
+E.unloadFile();                // forget the loaded recording
 E.resetSession();
 E.state                        // 'idle' | 'mic' | 'file-playing' | 'file-paused'
 ```
@@ -81,7 +83,7 @@ All Features fields plus:
 
 ### Summary (`getSessionSummary()`, `report.summary`)
 
-`count, thockScore, profile, profileName, consistency (0–100), centroid, peakHz, bands, decayMs, ringFraction, peakDb, clipped, binsHz, binsDb, curveDb, scores[], diagnosis[]`
+`count, thockScore, profile, profileName, consistency (0–100), centroid, peakHz (median of each key's loudest note), curvePeakHz, bands, decayMs, ringFraction, peakDb, clipped, binsHz, binsDb, curveDb, scores[], diagnosis[]`
 
 `diagnosis` ids: `too-few-hits, clipping, too-quiet, very-bright, bright, balanced, deep, ringy, hollow, inconsistent` → text + recommended recipe ids in `ThockContent.diagnosis`.
 

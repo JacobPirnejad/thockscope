@@ -316,7 +316,9 @@
       profileName: profile.name,
       consistency: Math.round(clamp(100 - spread * 3, 0, 100)), // 100 = every key sounds alike
       centroid: Math.round(median(hits.map((h) => h.centroid))),
-      peakHz: Math.round(peakHz),
+      // main pitch = typical loudest note of each key press (the averaged curve favours low notes)
+      peakHz: Math.round(median(hits.map((h) => h.peakHz))),
+      curvePeakHz: Math.round(peakHz),
       bands,
       decayMs,
       ringFraction,
@@ -524,6 +526,19 @@
     stop() {
       this._disconnectSources();
       if (this.state !== 'idle') this._setState('idle');
+    },
+
+    /** Forget the loaded recording. */
+    unloadFile() { if (this.state.startsWith('file')) this.stop(); this.file = null; },
+
+    /** Re-run the analysis of the loaded recording (e.g. after a sensitivity change). */
+    reanalyzeFile() {
+      if (!this.file) return null;
+      const report = E.analyzeBuffer(this.file.buffer);
+      report.name = this.file.name;
+      this.file.report = report;
+      emit('file', report);
+      return report;
     },
 
     /** 0 = only loud hits count, 1 = very sensitive. */

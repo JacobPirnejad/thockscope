@@ -263,7 +263,7 @@ body { color: var(--chalk); background-color: var(--paper);
 .fruit input { accent-color: var(--cyan); }
 
 /* generic cards (lessons, parts) — same look as the recipe and step cards */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: var(--gutter); margin-top: 12px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: var(--gutter); margin-top: 12px; align-items: start; }
 .card { min-width: 0; background: var(--card); border: 2px solid var(--edge); box-shadow: 4px 4px 0 var(--ink); padding: 12px 14px 14px; }
 .card h3 { margin: 0 0 6px; font-family: var(--font-display); font-weight: 400; font-size: 1.2rem; line-height: 1.2; letter-spacing: .04em; text-transform: uppercase; color: var(--caption); }
 .card p { margin: 0 0 8px; }
@@ -299,6 +299,9 @@ body { color: var(--chalk); background-color: var(--paper);
   .glossary dd { margin-bottom: 8px; }
   .chart-report { height: 180px; }
 }
+
+/* keyboard focus on the Upload button (the real file input is visually hidden) */
+#file-input:focus-visible + .btn { outline: 3px solid var(--cyan); outline-offset: 3px; }
 
 </style>
 </head>
@@ -966,7 +969,9 @@ body { color: var(--chalk); background-color: var(--paper);
       profileName: profile.name,
       consistency: Math.round(clamp(100 - spread * 3, 0, 100)), // 100 = every key sounds alike
       centroid: Math.round(median(hits.map((h) => h.centroid))),
-      peakHz: Math.round(peakHz),
+      // main pitch = typical loudest note of each key press (the averaged curve favours low notes)
+      peakHz: Math.round(median(hits.map((h) => h.peakHz))),
+      curvePeakHz: Math.round(peakHz),
       bands,
       decayMs,
       ringFraction,
@@ -1174,6 +1179,19 @@ body { color: var(--chalk); background-color: var(--paper);
     stop() {
       this._disconnectSources();
       if (this.state !== 'idle') this._setState('idle');
+    },
+
+    /** Forget the loaded recording. */
+    unloadFile() { if (this.state.startsWith('file')) this.stop(); this.file = null; },
+
+    /** Re-run the analysis of the loaded recording (e.g. after a sensitivity change). */
+    reanalyzeFile() {
+      if (!this.file) return null;
+      const report = E.analyzeBuffer(this.file.buffer);
+      report.name = this.file.name;
+      this.file.report = report;
+      emit('file', report);
+      return report;
     },
 
     /** 0 = only loud hits count, 1 = very sensitive. */
@@ -1867,14 +1885,14 @@ body { color: var(--chalk); background-color: var(--paper);
   function summaryBars(sum) {
     const db = toBars(sum.binsDb);
     let mx = -200; for (const v of db) mx = Math.max(mx, v);
-    return Float32Array.from(db, (v) => clamp((v - (mx - 57)) / 60, 0, 1));
+    return Float32Array.from(db, (v) => clamp((v - (mx - 38)) / 40, 0, 1)); // 40 dB view: faint spill-over stays small
   }
   function renderReport(sum, source) {
     currentSummary = sum;
     const head = $('#rep-headline'), bands = $('#rep-bands'), list = $('#rep-diagnosis'), cmp = $('#rep-compare');
     list.innerHTML = ''; bands.innerHTML = '';
     if (!sum || !sum.count) {
-      head.textContent = source === 'file' ? 'No key presses found in this recording. Raise Sensitivity and load it again.' : 'Type some keys to get your report.';
+      head.textContent = source === 'file' ? 'No key presses found in this recording. Try sliding Sensitivity up.' : 'Type some keys to get your report.';
       cmp.hidden = true;
       drawBars($('#cv-report'), null, { pin: pinned && Float32Array.from(pinned.bars) });
       return;
@@ -1972,6 +1990,7 @@ body { color: var(--chalk); background-color: var(--paper);
     $('#play-icon').setAttribute('d', s === 'file-playing' ? 'M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z' : 'M7 4.5v15l12-7.5z');
     if (s === 'mic') setStatus('Listening… type on your keyboard! (Headphones on, so the app doesn\'t hear itself.)');
     else if (s === 'file-playing') setStatus('Playing your recording…');
+    else if (s === 'file-paused') setStatus(`Paused at ${E.file.offset.toFixed(1)} s. Press Play to keep going.`);
     else if (s === 'idle' && !E.file && liveHits) setStatus(`Stopped. ${liveHits} key${liveHits === 1 ? '' : 's'} heard.`);
   });
   E.on('ended', () => { setStatus('Finished playing.'); drawOverview(); });
@@ -1980,10 +1999,10 @@ body { color: var(--chalk); background-color: var(--paper);
     $('#file-name').textContent = rep.name;
     renderReport(rep.summary, 'file');
     if (rep.summary.count) {
-      const last = rep.hits[rep.hits.length - 1];
-      showProfile({ ...rep.summary, centroid: rep.summary.centroid, peakHz: rep.summary.peakHz, profile: rep.summary.profile, thockScore: rep.summary.thockScore });
+      showProfile(rep.summary);
       holdDb.set(toBars(rep.summary.binsDb)); topDb = Math.max(...holdDb);
-      void last;
+    } else {
+      clearProfile(); holdDb.fill(-160);
     }
     $('#btn-play').hidden = false;
     requestAnimationFrame(() => { drawOverview(); drawSpectrum(); });
@@ -2009,10 +2028,10 @@ body { color: var(--chalk); background-color: var(--paper);
       setStatus(`Analysing ${f.name}…`);
       resetDisplay();
       const rep = await E.loadFile(f);
-      setStatus(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Raise Sensitivity, then load the file again.');
+      setStatus(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Try sliding Sensitivity up.');
     } catch (err) {
       setStatus('Could not read that file. Try a .wav, .mp3, .m4a or .ogg recording.', true);
-      console.error(err);
+      console.warn('ThockScope could not decode the file:', err);
     }
     e.target.value = '';
   });
@@ -2020,8 +2039,21 @@ body { color: var(--chalk); background-color: var(--paper);
     if (E.state === 'file-playing') E.pauseFile();
     else { if (E.state === 'mic') E.stop(); resetDisplay(); E.playFile(); }
   });
-  $('#sens').addEventListener('input', (e) => E.setSensitivity(parseFloat(e.target.value)));
+  let sensTimer;
+  $('#sens').addEventListener('input', (e) => {
+    E.setSensitivity(parseFloat(e.target.value));
+    // re-check a loaded recording with the new setting (not while it's playing)
+    clearTimeout(sensTimer);
+    sensTimer = setTimeout(() => {
+      if (!E.file || E.state === 'file-playing') return;
+      const rep = E.reanalyzeFile();
+      setStatus(rep.summary.count ? `Sensitivity changed: found ${rep.summary.count} key presses.` : 'Still no key presses found. Try sliding Sensitivity higher.');
+      drawSpectrum();
+    }, 250);
+  });
   $('#btn-reset').addEventListener('click', () => {
+    E.stop(); E.unloadFile();
+    $('#file-panel').hidden = true; $('#btn-play').hidden = true;
     E.resetSession(); liveHits = 0;
     renderReport(null); resetDisplay(); clearProfile(); drawLive();
     setStatus(C.ui.idle);
@@ -2098,7 +2130,7 @@ body { color: var(--chalk); background-color: var(--paper);
   }
   function drawDemo() {
     const mix = E.demoMix(fruits.map((f) => ({ hz: f.hz, amp: f.amp })), { waveMs: 20 });
-    const cw = $('#cv-demo-wave'); const g = ctxFor(cw), W = cw.width, H = cw.height, mid = H / 2, amp = H * 0.42 / 1.9;
+    const cw = $('#cv-demo-wave'); const g = ctxFor(cw), W = cw.width, H = cw.height, mid = H / 2, amp = (H * 0.42) / Math.max(1, fruits.reduce((t, f) => t + f.amp, 0));
     g.strokeStyle = col.edge; g.lineWidth = 1.5 * DPR; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
     const line = (wave, color, width, alpha, glow) => {
       g.save(); g.globalAlpha = alpha; g.strokeStyle = g.shadowColor = color; g.shadowBlur = glow ? 10 * DPR : 0; g.lineWidth = width * DPR; g.lineJoin = 'round';
@@ -2164,7 +2196,7 @@ body { color: var(--chalk); background-color: var(--paper);
     const partName = (id) => (C.parts.find((p) => p.id === id) || { name: id }).name;
     const list = $('#recipe-list');
     C.recipes.forEach((r) => {
-      const card = el('article', 'recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = r.tags.join(' ');
+      const card = el('article', 'recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = (r.cost === 1 && !r.tags.includes('budget') ? r.tags.concat('budget') : r.tags).join(' ');
       card.appendChild(el('h3', 'recipe-goal', r.want.replace(/^I want (my keyboard )?/, 'I want ').replace(/\.$/, '')));
       const ul = el('ul', 'recipe-steps');
       r.steps.forEach((s) => {

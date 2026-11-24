@@ -284,14 +284,14 @@
   function summaryBars(sum) {
     const db = toBars(sum.binsDb);
     let mx = -200; for (const v of db) mx = Math.max(mx, v);
-    return Float32Array.from(db, (v) => clamp((v - (mx - 57)) / 60, 0, 1));
+    return Float32Array.from(db, (v) => clamp((v - (mx - 38)) / 40, 0, 1)); // 40 dB view: faint spill-over stays small
   }
   function renderReport(sum, source) {
     currentSummary = sum;
     const head = $('#rep-headline'), bands = $('#rep-bands'), list = $('#rep-diagnosis'), cmp = $('#rep-compare');
     list.innerHTML = ''; bands.innerHTML = '';
     if (!sum || !sum.count) {
-      head.textContent = source === 'file' ? 'No key presses found in this recording. Raise Sensitivity and load it again.' : 'Type some keys to get your report.';
+      head.textContent = source === 'file' ? 'No key presses found in this recording. Try sliding Sensitivity up.' : 'Type some keys to get your report.';
       cmp.hidden = true;
       drawBars($('#cv-report'), null, { pin: pinned && Float32Array.from(pinned.bars) });
       return;
@@ -389,6 +389,7 @@
     $('#play-icon').setAttribute('d', s === 'file-playing' ? 'M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z' : 'M7 4.5v15l12-7.5z');
     if (s === 'mic') setStatus('Listening… type on your keyboard! (Headphones on, so the app doesn\'t hear itself.)');
     else if (s === 'file-playing') setStatus('Playing your recording…');
+    else if (s === 'file-paused') setStatus(`Paused at ${E.file.offset.toFixed(1)} s. Press Play to keep going.`);
     else if (s === 'idle' && !E.file && liveHits) setStatus(`Stopped. ${liveHits} key${liveHits === 1 ? '' : 's'} heard.`);
   });
   E.on('ended', () => { setStatus('Finished playing.'); drawOverview(); });
@@ -397,10 +398,10 @@
     $('#file-name').textContent = rep.name;
     renderReport(rep.summary, 'file');
     if (rep.summary.count) {
-      const last = rep.hits[rep.hits.length - 1];
-      showProfile({ ...rep.summary, centroid: rep.summary.centroid, peakHz: rep.summary.peakHz, profile: rep.summary.profile, thockScore: rep.summary.thockScore });
+      showProfile(rep.summary);
       holdDb.set(toBars(rep.summary.binsDb)); topDb = Math.max(...holdDb);
-      void last;
+    } else {
+      clearProfile(); holdDb.fill(-160);
     }
     $('#btn-play').hidden = false;
     requestAnimationFrame(() => { drawOverview(); drawSpectrum(); });
@@ -426,10 +427,10 @@
       setStatus(`Analysing ${f.name}…`);
       resetDisplay();
       const rep = await E.loadFile(f);
-      setStatus(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Raise Sensitivity, then load the file again.');
+      setStatus(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Try sliding Sensitivity up.');
     } catch (err) {
       setStatus('Could not read that file. Try a .wav, .mp3, .m4a or .ogg recording.', true);
-      console.error(err);
+      console.warn('ThockScope could not decode the file:', err);
     }
     e.target.value = '';
   });
@@ -437,8 +438,21 @@
     if (E.state === 'file-playing') E.pauseFile();
     else { if (E.state === 'mic') E.stop(); resetDisplay(); E.playFile(); }
   });
-  $('#sens').addEventListener('input', (e) => E.setSensitivity(parseFloat(e.target.value)));
+  let sensTimer;
+  $('#sens').addEventListener('input', (e) => {
+    E.setSensitivity(parseFloat(e.target.value));
+    // re-check a loaded recording with the new setting (not while it's playing)
+    clearTimeout(sensTimer);
+    sensTimer = setTimeout(() => {
+      if (!E.file || E.state === 'file-playing') return;
+      const rep = E.reanalyzeFile();
+      setStatus(rep.summary.count ? `Sensitivity changed: found ${rep.summary.count} key presses.` : 'Still no key presses found. Try sliding Sensitivity higher.');
+      drawSpectrum();
+    }, 250);
+  });
   $('#btn-reset').addEventListener('click', () => {
+    E.stop(); E.unloadFile();
+    $('#file-panel').hidden = true; $('#btn-play').hidden = true;
     E.resetSession(); liveHits = 0;
     renderReport(null); resetDisplay(); clearProfile(); drawLive();
     setStatus(C.ui.idle);
@@ -515,7 +529,7 @@
   }
   function drawDemo() {
     const mix = E.demoMix(fruits.map((f) => ({ hz: f.hz, amp: f.amp })), { waveMs: 20 });
-    const cw = $('#cv-demo-wave'); const g = ctxFor(cw), W = cw.width, H = cw.height, mid = H / 2, amp = H * 0.42 / 1.9;
+    const cw = $('#cv-demo-wave'); const g = ctxFor(cw), W = cw.width, H = cw.height, mid = H / 2, amp = (H * 0.42) / Math.max(1, fruits.reduce((t, f) => t + f.amp, 0));
     g.strokeStyle = col.edge; g.lineWidth = 1.5 * DPR; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
     const line = (wave, color, width, alpha, glow) => {
       g.save(); g.globalAlpha = alpha; g.strokeStyle = g.shadowColor = color; g.shadowBlur = glow ? 10 * DPR : 0; g.lineWidth = width * DPR; g.lineJoin = 'round';
@@ -581,7 +595,7 @@
     const partName = (id) => (C.parts.find((p) => p.id === id) || { name: id }).name;
     const list = $('#recipe-list');
     C.recipes.forEach((r) => {
-      const card = el('article', 'recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = r.tags.join(' ');
+      const card = el('article', 'recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = (r.cost === 1 && !r.tags.includes('budget') ? r.tags.concat('budget') : r.tags).join(' ');
       card.appendChild(el('h3', 'recipe-goal', r.want.replace(/^I want (my keyboard )?/, 'I want ').replace(/\.$/, '')));
       const ul = el('ul', 'recipe-steps');
       r.steps.forEach((s) => {
