@@ -70,11 +70,11 @@
 
   /** Sound profile descriptions (ids match ThockEngine.PROFILES). */
   const profiles = {
-    'deep-thock': { name: 'Deep Thock', soundsLike: 'a soft wooden "thud", like tapping a closed book', text: 'Almost all the sound is low. Very muted and deep.' },
-    'thock':      { name: 'Thock',      soundsLike: 'a rounded "thok", like a marble dropped on wood', text: 'Mostly low with a little bit of click on top.' },
-    'creamy':     { name: 'Creamy',     soundsLike: 'a smooth, soft "tock" with no harsh edges', text: 'Balanced: some low, some middle, not much harsh high end.' },
-    'clack':      { name: 'Clack',      soundsLike: 'a crisp "clack", like plastic tapping plastic', text: 'Lots of middle and high sound. Snappy and lively.' },
-    'sharp-clack':{ name: 'Sharp Clack',soundsLike: 'a bright "tick!", like a pen clicking', text: 'Mostly high, sharp sound. Very bright and loud-feeling.' },
+    'deep-thock': { name: 'Deep Thock', word: 'THOCK!', says: 'Super deep and muted. Big thock!', soundsLike: 'a soft wooden "thud", like tapping a closed book', text: 'Almost all the sound is low. Very muted and deep.' },
+    'thock':      { name: 'Thock', word: 'THOCKY', says: 'Deep and round. Nice thock!',      soundsLike: 'a rounded "thok", like a marble dropped on wood', text: 'Mostly low with a little bit of click on top.' },
+    'creamy':     { name: 'Creamy', word: 'CREAMY', says: 'Right in the middle. Smooth!',     soundsLike: 'a smooth, soft "tock" with no harsh edges', text: 'Balanced: some low, some middle, not much harsh high end.' },
+    'clack':      { name: 'Clack', word: 'CLACKY', says: 'Sharp and snappy. Clack attack!',      soundsLike: 'a crisp "clack", like plastic tapping plastic', text: 'Lots of middle and high sound. Snappy and lively.' },
+    'sharp-clack':{ name: 'Sharp Clack', word: 'CLACK!', says: 'Bright and crispy. Max clack!',soundsLike: 'a bright "tick!", like a pen clicking', text: 'Mostly high, sharp sound. Very bright and loud-feeling.' },
   };
 
   /** The parts of a keyboard and what each does to the sound. */
@@ -335,16 +335,27 @@
 
   /** Short labels used around the visualisers. */
   const ui = {
-    tagline: 'See what your keyboard sounds like.',
-    waveform: 'WAVE — the sound as wiggles',
-    spectrum: 'SPECTRUM — which pitches are inside',
-    spectrogram: 'SPECTROGRAM — pitches over time',
-    profile: 'SOUND PROFILE',
-    demo: 'TRY IT: the smoothie machine',
-    meterLeft: 'CLACK',
-    meterRight: 'THOCK',
-    micHint: 'Press Start Mic, then type on your keyboard!',
+    tagline: 'See what your keyboard sounds like',
+    narration: 'Meanwhile, at the keyboard…',
+    waveform: 'Waveform',
+    waveCaption: 'Each spike is one key press: a big hit going down, a smaller one coming back up.',
+    spectrum: 'Frequency Spectrum',
+    spectrumCaption: 'Which pitches are inside the sound. Tall bars on the left mean deep. Tall bars on the right mean bright.',
+    spectrogram: 'Spectrogram',
+    spectrogramCaption: 'The spectrum over time, newest on the right. Each bright stripe is a key press.',
+    profile: 'Sound Profile',
+    profileCaption: 'Your last key press',
+    demo: 'Try it: the smoothie machine',
+    demoCaption: 'Slide the fruits up and down. Top: the blended smoothie (the wave you hear). Bottom: what the Fourier transform finds inside it.',
+    learnTip: 'Thocky keyboards have lots of banana. Clacky keyboards have lots of berry.',
+    meterLeft: 'THOCK',
+    meterRight: 'CLACK',
+    idle: 'Press Start Mic, then type on your keyboard!',
+    sample: 'Showing a sample key press. Press Start Mic and type to see yours!',
   };
 
-  global.ThockContent = { lessons, profiles, parts, recipes, diagnosis, recordingTips, glossary, ui };
+  /** Brightness word from the centroid (Hz). */
+  function brightnessWord(hz) { return hz < 1500 ? 'Mellow' : hz < 2300 ? 'Medium' : 'Bright'; }
+
+  global.ThockContent = { lessons, profiles, parts, recipes, diagnosis, recordingTips, glossary, ui, brightnessWord };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,507 +1,489 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-live="off">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ThockScope</title>
 <meta name="description" content="See what your keyboard sounds like: a live frequency analyzer for custom mechanical keyboards.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;600;700&family=Special+Elite&display=swap">
 <style>
-@import url("https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;600;700&family=Special+Elite&display=swap");
 /*
  * ThockScope · NEON NOIR
- * Night-time detective comic: deep navy pages, panels shaded with diagonal ink hatching,
- * yellow typewriter caption boxes for titles, neon pink / violet / cyan signals.
- *
- * Drop-in replacement for css/app.css. Written against the class names and ids in index.html
- * and the ones js/ui.js generates. js/ui.js reads the --c-* and --spec-* tokens for canvas colors.
- * Layout: profile card on the left spanning wave + spectrum; spectrogram full width; one column on phones.
- * Single committed dark look (no light variant on purpose).
+ * Sections 1–2 are the chosen mockup's stylesheet (designs/option-4-neon-noir), unchanged.
+ * Section 3 styles the app-only parts (report card, recording, smoothie demo, recipes,
+ * parts, tips) in the same look. js/ui.js reads the color variables for the canvases.
  */
-:root {
-  /* ---- palette ---- */
-  --noir-night: #0A0C16;      /* page */
-  --noir-panel: #131729;      /* panels */
-  --noir-well: #070912;       /* inside chart frames */
-  --noir-card: #0C0F1D;       /* cards inside sections */
-  --noir-edge: #343B60;       /* panel borders */
-  --noir-ink: #000000;        /* hard shadows, outlines */
-  --noir-chalk: #ECE9F5;      /* main text */
-  --noir-dim: #8E93B4;        /* secondary text */
-  --noir-pink: #FF2E97;       /* LOW / thock, primary action */
-  --noir-violet: #9D5CFF;     /* MID / body */
-  --noir-cyan: #29F0FF;       /* HIGH / clack, data numbers */
-  --noir-caption: #F3D36B;    /* typewriter caption boxes, burst */
-  --noir-caption-ink: #15120A;
-
-  /* ---- type ---- */
-  --font-display: "Anton", Impact, "Arial Narrow", sans-serif;
-  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-type: "Special Elite", "Courier New", monospace;
-
-  /* ---- shape ---- */
-  --gutter: 18px;
-  --shadow: 6px 6px 0 var(--noir-ink);
-  --hatch: repeating-linear-gradient(135deg, rgba(0,0,0,.55) 0 2px, transparent 2px 6px);
-  --glow-pink: 0 0 18px rgba(255,46,151,.55);
-  --glow-cyan: 0 0 18px rgba(41,240,255,.5);
-
-  /* ---- tokens js/ui.js already reads (canvas colors) ---- */
-  --bg: var(--noir-night);
-  --panel: var(--noir-panel);
-  --ink: var(--noir-chalk);
-  --muted: var(--noir-dim);
-  --line: var(--noir-edge);
-  --accent: var(--noir-pink);
-  --accent-ink: var(--noir-night);
-  --font: "Barlow", system-ui, sans-serif;          /* canvas label font */
-  --c-bg: #070912;
-  --c-grid: #262B45;
-  --c-text: #8E93B4;
-  --c-wave: #29F0FF;
-  --c-bar: #9D5CFF;                                 /* single bar color today; see per-zone tokens below */
-  --c-curve: #ECE9F5;
-  --c-pin: #F3D36B;                                 /* the dashed "Before" curve */
-  --c-low: rgba(255, 46, 151, 0.10);
-  --c-mid: rgba(157, 92, 255, 0.10);
-  --c-high: rgba(41, 240, 255, 0.08);
-  --c-hit: #FF2E97;
-  --c-fruit-1: #FF2E97;                             /* strawberry, low */
-  --c-fruit-2: #F3D36B;                             /* banana, mid */
-  --c-fruit-3: #29F0FF;                             /* blueberry, high */
-  --spec-0: #070912;
-  --spec-1: #2A1F5C;
-  --spec-2: #7B3FD6;
-  --spec-3: #FF2E97;
-  --spec-4: #FFD1EC;
-  /* optional, for the ui.js upgrade described in HANDOFF.md */
-  --c-bar-low: #FF2E97;
-  --c-bar-mid: #9D5CFF;
-  --c-bar-high: #29F0FF;
-  --c-glow: 12;                                     /* canvas shadowBlur in px */
-
-  --radius: 0px;
-  color-scheme: dark;
-}
-
-/* ================================================================ base */
+/* ===== ThockScope shared structure (every option) =====
+   Layout: comic page. 12-col grid of panels with gutters; profile card spans two rows beside
+   waveform + spectrum; spectrogram, explainer and recipes run full width. One column on phones. */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  background-color: var(--noir-night);
-  background-image: repeating-linear-gradient(105deg, rgba(41,240,255,.035) 0 1px, transparent 1px 16px);
-  color: var(--noir-chalk);
-  font: 16px/1.5 var(--font-body);
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.ts-page {
+  max-width: 1240px; margin: 0 auto;
+  padding-block: 20px 40px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: var(--gutter, 18px);
 }
-.app-header, .app-main, .app-footer { max-width: 1240px; margin-left: auto; margin-right: auto; }
-a { color: var(--noir-cyan); }
-:focus-visible { outline: 3px solid var(--noir-cyan); outline-offset: 3px; }
-[hidden] { display: none !important; }
+.ts-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; position: relative; }
+.brand-mark { width: 56px; height: 56px; flex: none; }
+.brand-name { margin: 0; font-family: var(--font-display); line-height: 1; text-wrap: balance; }
+.brand-tag { margin: 4px 0 0; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; position: relative; }
+.btn { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font: inherit; text-decoration: none; user-select: none; }
+.btn svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.btn:focus-visible, #ts-file:focus-visible + .btn { outline: 3px solid var(--focus, currentColor); outline-offset: 3px; }
+.status { margin: 0; display: flex; align-items: center; gap: 8px; flex-basis: 100%; font-size: 0.85rem; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; opacity: .5; flex: none; }
+[data-live="on"] .status-dot { opacity: 1; }
 
-/* ================================================================ header */
-.app-header {
-  position: relative; margin-top: 20px;
-  display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;
-  padding: 34px 22px 18px;
-  background-color: #0E1120;
-  background-image: repeating-linear-gradient(110deg, rgba(255,46,151,.08) 0 2px, transparent 2px 22px);
-  border: 2px solid var(--noir-edge); box-shadow: var(--shadow);
-}
-/* narration caption: pure CSS, no markup needed */
-.app-header::before {
-  content: "Meanwhile, at the keyboard\2026";
-  position: absolute; top: -2px; left: -2px;
-  background: var(--noir-caption); color: var(--noir-caption-ink);
-  font: .85rem/1.4 var(--font-type); padding: 4px 12px;
-  border-right: 2px solid var(--noir-ink); border-bottom: 2px solid var(--noir-ink);
-}
-.brand { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-left: 70px; position: relative; }
-.brand::before { /* neon keycap logo */
-  content: ""; position: absolute; left: 0; top: 50%; width: 56px; height: 56px; transform: translateY(-50%);
-  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20ThockScope%20mark%3A%20neon%20keycap%20with%20a%20sound%20wave%20--%3E%0A%20%20%3Cpath%20d%3D%22M6%2022%20L14%208%20H50%20L58%2022%20V50%20Q58%2056%2052%2056%20H12%20Q6%2056%206%2050%20Z%22%20fill%3D%22%231B2038%22%20stroke%3D%22%2329F0FF%22%20stroke-width%3D%222.5%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M15%2012%20H49%20L53%2034%20Q53%2040%2047%2040%20H17%20Q11%2040%2011%2034%20Z%22%20fill%3D%22%230A0C16%22%20stroke%3D%22%2329F0FF%22%20stroke-width%3D%222.5%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M18%2026%20Q21%2018%2024%2026%20T30%2026%20T36%2026%20Q39%2020%2042%2026%20T47%2026%22%20stroke%3D%22%23FF2E97%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E") center / contain no-repeat;
-  filter: drop-shadow(0 0 8px rgba(41,240,255,.6));
-}
-.brand-title {
-  margin: 0; font-family: var(--font-display); font-weight: 400; line-height: 1;
-  font-size: clamp(2.6rem, 7vw, 4.6rem); letter-spacing: .02em; text-transform: uppercase;
-  color: var(--noir-chalk); text-shadow: 3px 3px 0 var(--noir-pink), 0 0 22px rgba(255,46,151,.55);
-}
-.brand-tagline { margin: 0; color: var(--noir-cyan); font-weight: 600; font-size: .9rem; letter-spacing: .06em; text-transform: uppercase; }
-.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; }
-.status { flex-basis: 100%; margin: 0; min-height: 1.5em; color: var(--noir-dim); font-size: .92rem; display: flex; align-items: center; gap: 8px; }
-.status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--noir-pink); box-shadow: 0 0 8px var(--noir-pink); flex: none; }
-.status:empty::before { display: none; }
-.status.error { color: var(--noir-pink); font-weight: 700; }
+.ts-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gutter, 18px); align-items: start; }
+.panel { position: relative; min-width: 0; }
+.p-wave { grid-column: span 8; }
+.p-profile { grid-column: span 4; grid-row: span 2; align-self: stretch; }
+.p-spectrum { grid-column: span 8; }
+.p-spectro, .p-learn, .p-recipes { grid-column: 1 / -1; }
+.panel-title { margin: 0; font-family: var(--font-display); line-height: 1.1; text-wrap: balance; }
+.caption { margin: 6px 0 12px; max-width: 65ch; }
 
-/* ================================================================ buttons & inputs */
-.btn {
-  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
-  font: 400 1.15rem/1.1 var(--font-display); letter-spacing: .06em; text-transform: uppercase;
-  padding: 11px 18px; border: 2px solid currentColor; border-radius: 0;
-  background: transparent; color: var(--noir-cyan);
-  transition: box-shadow .15s, transform .08s, background-color .15s;
-}
-.btn:hover:not(:disabled) { box-shadow: var(--glow-cyan); }
-.btn:active:not(:disabled) { transform: translate(2px, 2px); }
-.btn:disabled { opacity: .35; cursor: default; }
-.btn-primary { background: var(--noir-pink); border-color: var(--noir-pink); color: var(--noir-night); box-shadow: var(--glow-pink); }
-.btn-primary:hover:not(:disabled) { box-shadow: 0 0 28px rgba(255,46,151,.85); }
-.btn-primary.is-on { background: var(--noir-cyan); border-color: var(--noir-cyan); box-shadow: 0 0 22px rgba(41,240,255,.7); }
-.btn-file { color: var(--noir-cyan); }
-.btn-file:focus-within { outline: 3px solid var(--noir-cyan); outline-offset: 3px; }
-.btn-small { font-size: .9rem; padding: 6px 12px; }
-.sens { display: inline-flex; align-items: center; gap: 8px; font-size: .85rem; font-weight: 600; color: var(--noir-dim); text-transform: uppercase; letter-spacing: .06em; }
-input[type="range"] { accent-color: var(--noir-cyan); }
+.chart { position: relative; }
+.chart canvas { display: block; width: 100%; height: 100%; }
+.chart-wave { height: 150px; }
+.chart-spectrum { height: 250px; }
+.chart-spectro { height: 150px; }
+.chart-spectrum { margin-top: 40px; }
+.peak-tag { position: absolute; top: -4px; left: var(--peak-x, 27%); transform: translate(-50%, -100%); white-space: nowrap; pointer-events: none; }
+.zones { display: grid; grid-template-columns: 40fr 26.2fr 33.8fr; margin-top: 8px; }
+.zone { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-width: 0; }
+.axis-tag { position: absolute; font-family: var(--font-data); font-size: 11px; line-height: 1; pointer-events: none; }
+.axis-high { top: 6px; left: 6px; }
+.axis-low { bottom: 6px; left: 6px; }
+.axis-now { bottom: 6px; right: 6px; }
 
-/* ================================================================ panels (comic panels) */
-.panel {
-  position: relative; min-width: 0; overflow: hidden;
-  background-color: var(--noir-panel); border: 2px solid var(--noir-edge); border-radius: 0;
-  box-shadow: var(--shadow); padding: 0 18px 18px;
-}
-.panel::before { /* cel shadow drawn with ink hatching in the lower-right corner */
-  content: ""; position: absolute; inset: 0; pointer-events: none; background-image: var(--hatch);
-  -webkit-mask-image: linear-gradient(200deg, transparent 62%, #000 100%); mask-image: linear-gradient(200deg, transparent 62%, #000 100%);
-}
-.panel > * { position: relative; }
-/* titles are typewriter caption boxes tucked into the top-left corner of the panel */
-.panel-title {
-  display: inline-block; margin: 0 0 10px -18px; padding: 8px 14px 6px 18px;
-  background: var(--noir-caption); color: var(--noir-caption-ink);
-  font: 400 1rem/1.3 var(--font-type); letter-spacing: .04em; text-transform: uppercase;
-  border-right: 2px solid var(--noir-ink); border-bottom: 2px solid var(--noir-ink);
-}
-.panel-note { margin: 10px 0 0; color: var(--noir-dim); font-size: .95rem; max-width: 65ch; }
+.profile-label { position: relative; display: grid; place-items: center; margin: 4px auto 6px; width: min(100%, 300px); aspect-ratio: 200 / 120; max-width: 100%; }
+.profile-label > * { grid-area: 1 / 1; }
+.burst { width: 100%; height: 100%; }
+.profile-word { font-family: var(--font-display); line-height: 1; position: relative; }
+.meter { margin: 6px 0 14px; }
+.meter-track { position: relative; height: 26px; }
+.meter-needle { position: absolute; top: 50%; left: var(--pos, 50%); transform: translate(-50%, -50%); transition: left .25s ease; }
+.meter-fill { position: absolute; inset: 0 auto 0 0; width: var(--pos, 50%); transition: width .25s ease; }
+.meter-ends { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--font-display); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 14px; }
+.stat { min-width: 0; }
+.stat dt { font-size: 0.8rem; letter-spacing: .06em; text-transform: uppercase; }
+.stat dd { margin: 0; }
+.stat-num { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 2rem; line-height: 1.1; }
+.stat-word { font-size: 1.6rem; }
+.stat-unit { margin-left: 4px; font-weight: 700; }
+.stat-sub { font-size: 0.82rem; }
+.bubble { position: relative; margin: 0; }
 
-/* ================================================================ visualizer grid */
-.viz-grid {
-  display: grid; gap: var(--gutter); margin-top: var(--gutter);
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  grid-template-areas: "profile wave" "profile spectrum" "spectro spectro";
-}
-.panel-wave { grid-area: wave; }
-.panel-spectrum { grid-area: spectrum; }
-.panel-spectrogram { grid-area: spectro; }
-.panel-profile { grid-area: profile; }
-.panel-file, .panel-report { margin-top: var(--gutter); }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gutter, 18px); margin-top: 12px; }
+.step { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.step-art { width: 100%; height: auto; max-height: 130px; display: block; }
+.step figcaption b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 1.15rem; line-height: 1.2; margin-bottom: 2px; }
+.bubble-tip { margin-top: 16px; max-width: 60ch; }
 
-.viz { display: block; width: 100%; height: 160px; background: var(--c-bg); border: 2px solid var(--noir-edge); border-radius: 0; }
-.viz-tall { height: 300px; }
-.viz-small { height: 110px; }
-#cv-overview { cursor: pointer; }
+.recipes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gutter, 18px); }
+.recipe { min-width: 0; }
+.recipe-goal { margin: 0; font-family: var(--font-display); font-weight: 400; line-height: 1.15; text-wrap: balance; }
+.recipe-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.recipe-steps li { font-size: 0.92rem; line-height: 1.35; }
+.recipe-steps li b { display: block; font-size: 0.75rem; letter-spacing: .08em; text-transform: uppercase; }
+.ts-foot { font-size: 0.8rem; text-align: center; opacity: .75; }
 
-/* ================================================================ sound profile card */
-.meter { display: flex; align-items: center; gap: 10px; margin: 4px 0 6px; }
-.meter-end { font: 400 1.05rem/1 var(--font-display); letter-spacing: .08em; }
-.meter-left { color: var(--noir-cyan); text-shadow: 0 0 10px rgba(41,240,255,.6); }   /* CLACK */
-.meter-right { color: var(--noir-pink); text-shadow: 0 0 10px rgba(255,46,151,.6); }  /* THOCK */
-.meter-track {
-  position: relative; flex: 1; height: 22px; border: 2px solid var(--noir-edge); border-radius: 11px;
-  background: linear-gradient(90deg, var(--noir-cyan), var(--noir-violet) 50%, var(--noir-pink));
-  box-shadow: inset 0 0 0 3px var(--noir-well);
-}
-.meter-needle {
-  position: absolute; top: -9px; left: 50%; width: 8px; height: 36px; margin-left: -4px; border-radius: 4px;
-  background: var(--noir-chalk); border: 2px solid var(--noir-ink); opacity: .35;
-  transition: left .25s ease-out, opacity .2s;
-}
-.meter-needle.is-live { opacity: 1; box-shadow: 0 0 12px var(--noir-chalk); }
-/* profile name sits inside the comic starburst */
-.profile-name {
-  display: grid; place-items: center; margin: 10px auto 4px; width: min(100%, 300px); aspect-ratio: 200 / 120;
-  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20120%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Neon%20Noir%20starburst%3A%20caption%20yellow%2C%20ink%20outline.%20Used%20as%20the%20background%20of%20.profile-name%20--%3E%0A%20%20%3Cpolygon%20points%3D%22100.0%2C2.0%20112.5%2C20.6%20135.2%2C2.8%20136.0%2C25.4%20161.1%2C16.9%20155.2%2C34.3%20174.7%2C34.5%20167.7%2C46.3%20196.5%2C49.9%20172.0%2C60.0%20201.3%2C70.6%20167.7%2C73.7%20182.3%2C88.1%20155.2%2C85.7%20155.4%2C99.1%20136.0%2C94.6%20133.5%2C114.5%20112.5%2C99.4%20100.0%2C120.9%2087.5%2C99.4%2067.5%2C112.9%2064.0%2C94.6%2044.6%2C99.1%2044.8%2C85.7%2015.1%2C89.0%2032.3%2C73.7%20-1.3%2C70.6%2028.0%2C60.0%206.4%2C50.2%2032.3%2C46.3%2025.3%2C34.5%2044.8%2C34.3%2037.0%2C15.6%2064.0%2C25.4%2064.8%2C2.8%2087.5%2C20.6%22%20fill%3D%22%23F3D36B%22%20stroke%3D%22%23000%22%20stroke-width%3D%224%22%2F%3E%0A%3C%2Fsvg%3E") center / 100% 100% no-repeat;
-  filter: drop-shadow(0 0 14px rgba(243,211,107,.3));
-  font: 400 clamp(1.7rem, 3.4vw, 2.4rem)/1 var(--font-display); letter-spacing: .03em; text-transform: uppercase;
-  color: var(--noir-night); text-align: center; padding: 0 22%;
-}
-/* the "Sounds like ..." line is a speech bubble */
-.profile-desc {
-  position: relative; margin: 18px 0 14px; padding: 10px 16px; border-radius: 20px;
-  background: var(--noir-chalk); color: var(--noir-night); border: 2px solid var(--noir-ink); font-weight: 600;
-}
-.profile-desc::after {
-  content: ""; position: absolute; top: -15px; left: 28px; width: 20px; height: 16px;
-  background: var(--noir-chalk); clip-path: polygon(0 100%, 100% 100%, 20% 0);
-}
-.profile-desc:empty { display: none; }
-.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; margin: 0 0 14px; }
-.stats > div { border-left: 3px solid var(--noir-edge); padding: 2px 0 2px 10px; min-width: 0; }
-.stats dt { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--noir-dim); }
-.stats dd {
-  margin: 0; font: 400 1.9rem/1.1 var(--font-display); letter-spacing: .02em; font-variant-numeric: tabular-nums;
-  color: var(--noir-cyan); text-shadow: 0 0 12px rgba(41,240,255,.5); overflow-wrap: anywhere;
-}
-#cv-hit { margin-top: 4px; }
-.hit-flash { animation: noir-flash .3s ease-out; }
-@keyframes noir-flash {
-  from { border-color: var(--noir-pink); box-shadow: var(--shadow), 0 0 26px rgba(255,46,151,.6); }
-  to   { border-color: var(--noir-edge); box-shadow: var(--shadow); }
-}
-
-/* ================================================================ report card */
-.report-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.report-head .panel-title { margin-bottom: 0; }
-.report-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 10px; }
-.report-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--gutter); margin-top: 12px; }
-.report-headline { margin: 0 0 8px; font: 400 1.5rem/1.2 var(--font-display); letter-spacing: .03em; color: var(--noir-chalk); }
-.report-compare { margin: 0 0 10px; font-weight: 700; color: var(--noir-caption); }
-.bands { display: flex; height: 26px; margin-bottom: 12px; border: 2px solid var(--noir-ink); overflow: hidden; font: 400 .8rem/1 var(--font-display); letter-spacing: .06em; }
-.bands span { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; color: var(--noir-night); }
-.band-low { background: var(--noir-pink); }
-.band-mid { background: var(--noir-violet); }
-.band-high { background: var(--noir-cyan); }
-.diagnosis-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-.diagnosis-list li { border-left: 4px solid var(--noir-cyan); background: var(--noir-card); padding: 8px 12px; }
-.diagnosis-list li.warn { border-color: var(--noir-pink); }
-.diagnosis-list li.info { border-color: var(--noir-dim); }
-.diagnosis-list strong { display: block; color: var(--noir-chalk); }
-.recipe-link { font: inherit; font-size: .9rem; font-weight: 700; background: none; border: 0; padding: 0; margin-right: 12px; color: var(--noir-cyan); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-
-/* ================================================================ sections */
-.section { margin-top: 48px; }
-.section-title {
-  margin: 0 0 10px; font: 400 clamp(1.8rem, 4vw, 2.4rem)/1.1 var(--font-display); letter-spacing: .03em; text-transform: uppercase;
-  color: var(--noir-chalk); text-shadow: 3px 3px 0 var(--noir-pink); text-wrap: balance;
-}
-.section-intro { margin: 0 0 14px; color: var(--noir-dim); max-width: 65ch; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--gutter); }
-.card { position: relative; min-width: 0; background: var(--noir-card); border: 2px solid var(--noir-edge); box-shadow: 4px 4px 0 var(--noir-ink); padding: 14px 16px 16px; }
-.card h3 { margin: 0 0 6px; font: 400 1.25rem/1.2 var(--font-display); letter-spacing: .03em; color: var(--noir-cyan); text-wrap: balance; }
-.card p { margin: 0 0 8px; }
-.card .short { font-weight: 600; color: var(--noir-chalk); }
-.card details summary { cursor: pointer; color: var(--noir-cyan); font-weight: 700; font-size: .92rem; }
-.card details p { margin-top: 8px; color: var(--noir-dim); }
-.card.is-highlight { outline: 3px solid var(--noir-pink); box-shadow: 4px 4px 0 var(--noir-ink), var(--glow-pink); }
-
-/* smoothie demo */
-.demo { margin-bottom: var(--gutter); }
-.demo-intro { margin: 0 0 12px; color: var(--noir-dim); max-width: 65ch; }
-.demo-controls { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-bottom: 12px; }
-.fruit { display: flex; align-items: center; gap: 8px; font-size: .95rem; font-weight: 600; }
-.fruit-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid var(--noir-ink); box-shadow: 0 0 8px currentColor; }
-#cv-demo-wave { margin-bottom: 10px; }
-
-/* recipes */
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.chip {
-  font: 700 .85rem/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
-  border: 2px solid var(--noir-edge); background: transparent; color: var(--noir-chalk); padding: 8px 12px; border-radius: 0;
-}
-.chip:hover { border-color: var(--noir-cyan); }
-.chip.is-active { background: var(--noir-pink); border-color: var(--noir-pink); color: var(--noir-night); box-shadow: var(--glow-pink); }
-.recipe { padding-top: 0; }
-.recipe h3 { /* goal as a caption box */
-  margin: 0 -16px 10px; padding: 10px 16px 8px; background: var(--noir-caption); color: var(--noir-caption-ink);
-  font: 400 1.05rem/1.3 var(--font-type); letter-spacing: .02em; border-bottom: 2px solid var(--noir-ink);
-}
-.recipe-want { color: var(--noir-dim); font-style: italic; }
-.recipe-meta { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--noir-violet); margin-bottom: 8px; }
-.recipe-steps { margin: 6px 0 10px; padding-left: 20px; display: grid; gap: 8px; }
-.recipe-steps li { line-height: 1.4; }
-.recipe-steps li::marker { color: var(--noir-pink); font-family: var(--font-display); }
-.recipe-steps .part-tag { display: inline-block; margin-right: 6px; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--noir-cyan); }
-.recipe-steps .why { display: block; font-size: .87rem; color: var(--noir-dim); }
-.recipe-graph { font-size: .9rem; background: var(--noir-well); border-left: 3px solid var(--noir-violet); padding: 8px 10px; }
-.part-tip { font-size: .9rem; color: var(--noir-dim); }
-
-/* tips + glossary */
-.tips { padding-left: 20px; display: grid; gap: 6px; }
-.tips li::marker { color: var(--noir-cyan); }
-.glossary { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; }
-.glossary dt { font-weight: 700; color: var(--noir-caption); }
-.glossary dd { margin: 0; color: var(--noir-dim); }
-
-.app-footer { padding-block: 40px; color: var(--noir-dim); font-size: .85rem; text-align: center; }
-
-/* ================================================================ optional extras (see HANDOFF.md) */
-/* PEAK tag floating over the spectrum: <div class="viz-wrap"><canvas id="cv-spectrum">…</canvas><span class="peak-tag" style="--peak-x:27%">PEAK <b>248 Hz</b></span></div> */
-.viz-wrap { position: relative; margin-top: 30px; }
-.peak-tag {
-  position: absolute; top: -4px; left: var(--peak-x, 50%); transform: translate(-50%, -100%); white-space: nowrap; pointer-events: none;
-  font: 400 .95rem/1.2 var(--font-display); letter-spacing: .06em; color: var(--noir-caption-ink);
-  background: var(--noir-caption); padding: 2px 8px; border: 2px solid var(--noir-ink);
-}
-.peak-tag b { font-weight: 400; }
-/* Zone legend under the spectrum: <div class="zones"><span class="zone zone-low"><b>LOW</b> <small>THOCK zone</small></span>…</div> */
-.zones { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; margin-top: 8px; }
-.zone { display: flex; align-items: baseline; gap: 6px; }
-.zone b { font: 400 1.05rem/1 var(--font-display); letter-spacing: .08em; }
-.zone small { color: var(--noir-dim); }
-.zone-low b { color: var(--noir-pink); text-shadow: 0 0 10px rgba(255,46,151,.7); }
-.zone-mid b { color: var(--noir-violet); text-shadow: 0 0 10px rgba(157,92,255,.7); }
-.zone-high b { color: var(--noir-cyan); text-shadow: 0 0 10px rgba(41,240,255,.7); }
-/* Clacky profiles get the cyan burst: set data-profile on .panel-profile from hit.profile */
-.panel-profile[data-profile="clack"] .profile-name,
-.panel-profile[data-profile="sharp-clack"] .profile-name { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20120%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Cyan%20variant%20for%20clacky%20profiles%20--%3E%0A%20%20%3Cpolygon%20points%3D%22100.0%2C2.0%20112.5%2C20.6%20135.2%2C2.8%20136.0%2C25.4%20161.1%2C16.9%20155.2%2C34.3%20174.7%2C34.5%20167.7%2C46.3%20196.5%2C49.9%20172.0%2C60.0%20201.3%2C70.6%20167.7%2C73.7%20182.3%2C88.1%20155.2%2C85.7%20155.4%2C99.1%20136.0%2C94.6%20133.5%2C114.5%20112.5%2C99.4%20100.0%2C120.9%2087.5%2C99.4%2067.5%2C112.9%2064.0%2C94.6%2044.6%2C99.1%2044.8%2C85.7%2015.1%2C89.0%2032.3%2C73.7%20-1.3%2C70.6%2028.0%2C60.0%206.4%2C50.2%2032.3%2C46.3%2025.3%2C34.5%2044.8%2C34.3%2037.0%2C15.6%2064.0%2C25.4%2064.8%2C2.8%2087.5%2C20.6%22%20fill%3D%22%2329F0FF%22%20stroke%3D%22%23000%22%20stroke-width%3D%224%22%2F%3E%0A%3C%2Fsvg%3E"); }
-/* Explainer art for the lessons/demo: <img class="learn-art" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20110%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Step%201%3A%20the%20smoothie%20(one%20mixed-up%20wave)%20--%3E%0A%20%20%3Cpath%20d%3D%22M40%208%20H160%20L148%20102%20H52%20Z%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M45%2034%20H155%20L148%20102%20H52%20Z%22%20fill%3D%22%239D5CFF%22%20fill-opacity%3D%22.3%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M54.0%2057.7%20L55.5%2056.9%20L57.0%2058.0%20L58.5%2063.5%20L60.0%2072.9%20L61.5%2082.3%20L63.0%2087.7%20L64.5%2087.3%20L66.0%2082.8%20L67.5%2078.3%20L69.0%2076.6%20L70.5%2077.5%20L72.0%2078.2%20L73.5%2076.3%20L75.0%2071.8%20L76.5%2067.5%20L78.0%2066.8%20L79.5%2070.7%20L81.0%2076.7%20L82.5%2080.5%20L84.0%2079.0%20L85.5%2072.6%20L87.0%2064.8%20L88.5%2059.2%20L90.0%2056.9%20L91.5%2056.0%20L93.0%2053.7%20L94.5%2048.8%20L96.0%2043.5%20L97.5%2041.3%20L99.0%2044.7%20L100.5%2052.4%20L102.0%2060.6%20L103.5%2065.0%20L105.0%2064.6%20L106.5%2061.5%20L108.0%2059.4%20L109.5%2060.4%20L111.0%2063.4%20L112.5%2065.7%20L114.0%2064.9%20L115.5%2062.1%20L117.0%2060.5%20L118.5%2063.4%20L120.0%2071.1%20L121.5%2080.8%20L123.0%2087.8%20L124.5%2089.5%20L126.0%2086.8%20L127.5%2082.9%20L129.0%2080.8%20L130.5%2080.8%20L132.0%2080.5%20L133.5%2077.0%20L135.0%2070.3%20L136.5%2062.9%20L138.0%2058.8%20L139.5%2060.2%20L141.0%2065.4%20L142.5%2070.3%20L144.0%2071.3%20L145.5%2067.8%22%20stroke%3D%22%23FF2E97%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E" (path from index.html) alt=""> */
-.learn-art { display: block; width: 100%; max-width: 220px; height: auto; margin: 0 auto 10px; }
-
-/* ================================================================ responsive */
-@media (max-width: 900px) {
-  .viz-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "wave" "profile" "spectrum" "spectro"; }
-  .report-body { grid-template-columns: minmax(0, 1fr); }
-  .controls { margin-left: 0; }
+@media (max-width: 1060px) { .recipes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) {
+  .ts-grid > .panel { grid-column: 1 / -1; grid-row: auto; }
+  .steps { grid-template-columns: 1fr; }
+  .step { flex-direction: row; align-items: center; }
+  .step-art { width: 42%; flex: none; }
 }
 @media (max-width: 560px) {
-  .app-header { padding: 40px 16px 16px; }
-  .brand { padding-left: 0; padding-top: 52px; }
-  .brand::before { top: 0; transform: none; width: 46px; height: 46px; }
-  .viz-tall { height: 220px; }
-  .viz { height: 130px; }
-  .viz-small { height: 100px; }
-  .btn { font-size: 1.05rem; padding: 10px 14px; }
+  .recipes { grid-template-columns: 1fr; }
+  .chart-spectrum { height: 210px; }
+  .chart-wave, .chart-spectro { height: 120px; }
+  .step { flex-direction: column; align-items: stretch; }
+  .step-art { width: 100%; max-height: 110px; }
+  .brand-mark { width: 44px; height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* ===== option: Neon Noir ===== */
+/* Layout: night-time noir comic. Deep navy-black pages, panels shaded with diagonal ink hatching,
+   yellow typewriter narration boxes, neon pink/cyan glowing signals. Profile card sits on the LEFT. */
+:root {
+  --paper: #0A0C16; --panel: #131729; --ink: #000000; --chalk: #ECE9F5; --chalk-dim: #8E93B4; --edge: #343B60;
+  --pink: #FF2E97; --cyan: #29F0FF; --violet: #9D5CFF; --caption: #F3D36B;
+  --low: var(--pink); --mid: var(--violet); --high: var(--cyan); --curve: var(--chalk);
+  --wave-fill: var(--cyan); --grid: #262B45; --focus: var(--cyan);
+  --s0: #0A0C16; --s1: #2A1F5C; --s2: #7B3FD6; --s3: #FF2E97; --s4: #FFD1EC;
+  --font-display: "Anton", "Impact", sans-serif;
+  --font-body: "Barlow", system-ui, sans-serif;
+  --font-data: "Barlow", system-ui, sans-serif;
+  --font-type: "Special Elite", "Courier New", monospace;
+  --gutter: 18px;
+  color-scheme: dark;
+}
+body { color: var(--chalk); background-color: var(--paper);
+  background-image: repeating-linear-gradient(105deg, rgba(41,240,255,.035) 0 1px, transparent 1px 16px); }
+.p-profile { grid-column: 1 / span 4; grid-row: 1 / span 2; }
+.p-wave { grid-column: 5 / -1; grid-row: 1; }
+.p-spectrum { grid-column: 5 / -1; grid-row: 2; }
+.panel { background-color: var(--panel); border: 2px solid var(--edge); box-shadow: 6px 6px 0 var(--ink); padding: 0 18px 18px; overflow: hidden; }
+.panel::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: repeating-linear-gradient(135deg, rgba(0,0,0,.55) 0 2px, transparent 2px 6px);
+  -webkit-mask-image: linear-gradient(200deg, transparent 62%, #000 100%); mask-image: linear-gradient(200deg, transparent 62%, #000 100%); }
+.panel > * { position: relative; }
+.panel-title { display: inline-block; margin: 0 0 4px -18px; background: var(--caption); color: #15120A; font-family: var(--font-type); font-weight: 400; font-size: 1.05rem; padding: 8px 14px 6px 18px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); text-transform: uppercase; letter-spacing: .04em; }
+.caption { color: var(--chalk-dim); font-size: .95rem; }
+
+/* header */
+.ts-header { padding: 22px; background-color: #0E1120; border: 2px solid var(--edge);
+  background-image: repeating-linear-gradient(110deg, rgba(255,46,151,.08) 0 2px, transparent 2px 22px); }
+.ts-header::before { display: none; }
+.narration { position: absolute; top: -2px; left: -2px; margin: 0; background: var(--caption); color: #15120A; font-family: var(--font-type); font-size: .85rem; padding: 4px 12px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
+.brand { margin-top: 18px; }
+.brand-name { font-size: clamp(2.6rem, 7vw, 4.6rem); font-weight: 400; letter-spacing: .02em; text-transform: uppercase; color: var(--chalk); text-shadow: 3px 3px 0 var(--pink), 0 0 22px rgba(255,46,151,.55); }
+.brand-tag { color: var(--cyan); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: .85rem; }
+.brand-mark .cap-side { fill: #1B2038; stroke: var(--cyan); stroke-width: 2.5; }
+.brand-mark .cap-top { fill: #0A0C16; stroke: var(--cyan); stroke-width: 2.5; }
+.brand-mark .cap-wave { fill: none; stroke: var(--pink); stroke-width: 3; stroke-linecap: round; }
+.brand-mark { filter: drop-shadow(0 0 8px rgba(41,240,255,.6)); }
+.btn { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: .06em; text-transform: uppercase; padding: 10px 18px; border: 2px solid currentColor; transition: box-shadow .15s, transform .08s; }
+.btn:active { transform: translate(2px, 2px); }
+.btn-primary { background: var(--pink); color: #0A0C16; border-color: var(--pink); box-shadow: 0 0 18px rgba(255,46,151,.55); }
+.btn-primary:hover { box-shadow: 0 0 28px rgba(255,46,151,.85); }
+.btn-secondary { background: transparent; color: var(--cyan); }
+.btn-secondary:hover { box-shadow: 0 0 18px rgba(41,240,255,.5); }
+[data-live="on"] .btn-primary { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 22px rgba(41,240,255,.7); }
+.status { color: var(--chalk-dim); }
+.status-dot { background: var(--pink); box-shadow: 0 0 8px var(--pink); }
+
+/* charts */
+.chart-wave, .chart-spectro { background: #070912; border: 2px solid var(--edge); }
+.peak-tag { font-family: var(--font-display); letter-spacing: .06em; font-size: .95rem; color: #15120A; background: var(--caption); padding: 2px 8px; border: 2px solid var(--ink); }
+.peak-tag b { font-weight: 400; }
+.zone b { font-family: var(--font-display); font-weight: 400; letter-spacing: .08em; font-size: 1.05rem; }
+.zone small { color: var(--chalk-dim); }
+.zone-low b { color: var(--pink); text-shadow: 0 0 10px rgba(255,46,151,.7); }
+.zone-mid b { color: var(--violet); text-shadow: 0 0 10px rgba(157,92,255,.7); }
+.zone-high b { color: var(--cyan); text-shadow: 0 0 10px rgba(41,240,255,.7); }
+.axis-tag { color: var(--chalk-dim); font-weight: 600; }
+
+/* profile */
+.burst-shape { fill: var(--caption); stroke: var(--ink); stroke-width: 4; stroke-linejoin: round; }
+.burst { filter: drop-shadow(0 0 14px rgba(243,211,107,.35)); }
+[data-profile="clacky"] .burst-shape { fill: var(--cyan); }
+.profile-word { font-size: clamp(2.2rem, 4vw, 2.9rem); font-weight: 400; color: #0A0C16; letter-spacing: .04em; transform: rotate(-5deg); }
+.meter-track { background: #070912; border: 2px solid var(--edge); border-radius: 13px; overflow: hidden; }
+.meter-fill { background: linear-gradient(90deg, var(--pink), var(--violet) 60%, var(--cyan)); box-shadow: 0 0 14px rgba(255,46,151,.6); }
+.meter-needle { width: 6px; height: 40px; background: var(--chalk); box-shadow: 0 0 10px var(--chalk); border-radius: 3px; }
+.meter { position: relative; }
+.meter-ends { font-size: 1.05rem; letter-spacing: .08em; }
+.meter-ends span:first-child { color: var(--pink); } .meter-ends span:last-child { color: var(--cyan); }
+.stat { border-left: 3px solid var(--edge); padding-left: 10px; }
+.stat dt { color: var(--chalk-dim); font-weight: 700; }
+.stat-num { font-family: var(--font-display); font-size: 2.3rem; letter-spacing: .02em; color: var(--cyan); text-shadow: 0 0 12px rgba(41,240,255,.55); }
+.stat-word { font-size: 1.9rem; }
+.stat-sub { color: var(--chalk-dim); }
+.bubble { background: var(--chalk); color: #0A0C16; border: 2px solid var(--ink); border-radius: 22px; padding: 10px 16px; font-weight: 600; }
+.bubble::after { content: ""; position: absolute; top: -15px; left: 28px; width: 20px; height: 16px; background: var(--chalk); clip-path: polygon(0 100%, 100% 100%, 20% 0); }
+
+/* explainer */
+.step { background: #0C0F1D; border: 2px solid var(--edge); padding: 12px; }
+.step figcaption { color: var(--chalk); font-size: .95rem; }
+.step figcaption b { font-size: 1.25rem; letter-spacing: .05em; color: var(--caption); text-transform: uppercase; }
+.step-art path, .step-art rect, .step-art circle { stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.art-cup { fill: none; stroke: var(--chalk-dim); } .art-liquid { fill: rgba(157,92,255,.3); stroke: none; } .art-wave { fill: none; stroke: var(--pink); filter: drop-shadow(0 0 4px var(--pink)); }
+.art-jar { fill: rgba(41,240,255,.06); stroke: var(--chalk-dim); } .art-base { fill: #22283F; stroke: var(--chalk-dim); }
+.art-low { fill: none; stroke: var(--pink); } .art-mid { fill: none; stroke: var(--violet); } .art-high { fill: none; stroke: var(--cyan); }
+.art-bar { stroke: var(--ink); } .art-bar-low { fill: var(--pink); } .art-bar-mid { fill: var(--violet); } .art-bar-high { fill: var(--cyan); }
+.art-fruit { stroke: var(--ink); } .fruit-a { fill: var(--caption); } .fruit-b { fill: var(--pink); } .fruit-c { fill: #5B8CFF; }
+.art-axis { fill: none; stroke: var(--chalk-dim); }
+
+/* recipes */
+.recipe { background: #0C0F1D; border: 2px solid var(--edge); box-shadow: 4px 4px 0 var(--ink); }
+.recipe-goal { font-family: var(--font-type); font-size: 1rem; background: var(--caption); color: #15120A; padding: 10px 12px; }
+.recipe-steps { padding: 12px; }
+.recipe-steps li b { color: var(--cyan); }
+.recipe-steps li { color: var(--chalk); }
+.ts-foot { color: var(--chalk-dim); }
+@media (max-width: 860px) { .p-profile, .p-wave, .p-spectrum { grid-column: 1 / -1; grid-row: auto; } }
+
+/* ===== 3. app additions, in the Neon Noir look ===== */
+:root { --well: #070912; --card: #0C0F1D; --fruit-a: var(--caption); --fruit-b: var(--pink); --fruit-c: #5B8CFF; }
+[hidden] { display: none !important; }
+.p-file, .p-report, .p-parts, .p-tips { grid-column: 1 / -1; }
+.caption b { color: var(--chalk); }
+
+/* header extras */
+.sens { display: inline-flex; align-items: center; gap: 8px; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--chalk-dim); }
+.sens input { accent-color: var(--cyan); width: 110px; }
+.btn-small { font-size: .95rem; padding: 6px 12px; }
+.btn svg path#play-icon { fill: currentColor; stroke: none; }
+.profile-word { text-align: center; max-width: 72%; }
+
+/* charts the mockup doesn't have */
+.chart-overview { height: 90px; background: var(--well); border: 2px solid var(--edge); cursor: pointer; }
+.chart-report { height: 220px; }
+.chart-demo { height: 120px; background: var(--well); border: 2px solid var(--edge); margin-bottom: 10px; }
+
+/* report card */
+.report-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.report-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; }
+.report-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--gutter); margin-top: 12px; align-items: start; }
+.report-headline { margin: 0 0 8px; font-family: var(--font-display); font-size: 1.5rem; line-height: 1.2; letter-spacing: .03em; color: var(--chalk); }
+.report-compare { margin: 0 0 10px; font-weight: 700; color: var(--caption); }
+.bands { display: flex; height: 26px; margin-bottom: 12px; border: 2px solid var(--ink); overflow: hidden; font-family: var(--font-display); font-size: .8rem; letter-spacing: .06em; }
+.bands:empty { display: none; }
+.bands span { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; color: var(--paper); }
+.band-low { background: var(--pink); } .band-mid { background: var(--violet); } .band-high { background: var(--cyan); }
+.diagnosis-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.diagnosis-list li { border-left: 4px solid var(--cyan); background: var(--card); padding: 8px 12px; }
+.diagnosis-list li.warn { border-color: var(--pink); }
+.diagnosis-list li.info { border-color: var(--chalk-dim); }
+.diagnosis-list strong { display: block; color: var(--chalk); }
+.recipe-link { font: inherit; font-size: .9rem; font-weight: 700; background: none; border: 0; padding: 0; margin-right: 12px; color: var(--cyan); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* sub-headings inside a panel */
+.sub-title { margin: 28px 0 0; font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; line-height: 1.1; letter-spacing: .03em; text-transform: uppercase; color: var(--chalk); text-shadow: 2px 2px 0 var(--pink); }
+
+/* smoothie demo */
+.demo-controls { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-bottom: 12px; }
+.fruit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .95rem; font-weight: 600; }
+.fruit-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid var(--ink); }
+.fruit input { accent-color: var(--cyan); }
+
+/* generic cards (lessons, parts) — same look as the recipe and step cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: var(--gutter); margin-top: 12px; }
+.card { min-width: 0; background: var(--card); border: 2px solid var(--edge); box-shadow: 4px 4px 0 var(--ink); padding: 12px 14px 14px; }
+.card h3 { margin: 0 0 6px; font-family: var(--font-display); font-weight: 400; font-size: 1.2rem; line-height: 1.2; letter-spacing: .04em; text-transform: uppercase; color: var(--caption); }
+.card p { margin: 0 0 8px; }
+.card .short { font-weight: 600; color: var(--chalk); }
+.card .dim { color: var(--chalk-dim); font-size: .92rem; }
+.card details summary { cursor: pointer; color: var(--cyan); font-weight: 700; font-size: .92rem; }
+.card details p { margin-top: 8px; color: var(--chalk-dim); }
+
+/* recipe filters + extras on the mockup's recipe cards */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip { font: 700 .85rem/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; border: 2px solid var(--edge); background: transparent; color: var(--chalk); padding: 8px 12px; }
+.chip:hover { border-color: var(--cyan); }
+.chip.is-active { background: var(--pink); border-color: var(--pink); color: var(--paper); box-shadow: 0 0 18px rgba(255,46,151,.55); }
+.recipe-want { margin: 10px 12px 0; color: var(--chalk-dim); font-style: italic; font-size: .92rem; }
+.recipe-steps .why { display: block; font-size: .82rem; color: var(--chalk-dim); margin-top: 2px; }
+.recipe-graph { margin: 0 12px 10px; font-size: .85rem; background: var(--well); border-left: 3px solid var(--violet); padding: 6px 10px; }
+.recipe-meta { margin: 0 12px 12px; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--violet); }
+.recipe.is-highlight, .card.is-highlight { outline: 3px solid var(--pink); box-shadow: 4px 4px 0 var(--ink), 0 0 18px rgba(255,46,151,.55); }
+
+/* tips + glossary */
+.tips-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: var(--gutter); margin-top: 12px; }
+.tips { margin: 0; padding-left: 20px; display: grid; gap: 8px; align-content: start; }
+.tips li::marker { color: var(--cyan); }
+.glossary { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; align-content: start; }
+.glossary dt { font-weight: 700; color: var(--caption); }
+.glossary dd { margin: 0; color: var(--chalk-dim); }
+
+@media (max-width: 860px) {
+  .report-body, .tips-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
   .glossary { grid-template-columns: 1fr; }
   .glossary dd { margin-bottom: 8px; }
+  .chart-report { height: 180px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition: none !important; animation: none !important; }
-}
-
-/* ================================================================ app additions (built on the Neon Noir tokens) */
-/* 3-step Fourier story strip at the top of the smoothie demo */
-.learn-strip { list-style: none; margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gutter); counter-reset: none; }
-.learn-strip li { display: flex; flex-direction: column; gap: 6px; background: var(--noir-card); border: 2px solid var(--noir-edge); box-shadow: 4px 4px 0 var(--noir-ink); padding: 12px; font-size: .92rem; }
-.learn-strip b { font-family: var(--font-display); font-weight: 400; color: var(--noir-caption); letter-spacing: .04em; }
-.learn-strip .learn-art { margin-bottom: 4px; }
-@media (max-width: 700px) { .learn-strip { grid-template-columns: minmax(0, 1fr); } .learn-strip .learn-art { max-width: 180px; } }
 
 </style>
 </head>
 <body>
-<header class="app-header">
-  <div class="brand">
-    <h1 class="brand-title">ThockScope</h1>
-    <p class="brand-tagline" data-text="ui.tagline"></p>
-  </div>
-  <div class="controls" role="toolbar" aria-label="Audio controls">
-    <button id="btn-mic" class="btn btn-primary" type="button">Start Mic</button>
-    <label class="btn btn-file">Upload Recording
-      <input id="file-input" type="file" accept="audio/*,video/*" hidden>
-    </label>
-    <button id="btn-play" class="btn" type="button" hidden>Play</button>
-    <button id="btn-stop" class="btn" type="button" disabled>Stop</button>
-    <label class="sens">Sensitivity
-      <input id="sens" type="range" min="0" max="1" step="0.05" value="0.5">
-    </label>
-  </div>
-  <p id="status" class="status" role="status" aria-live="polite"></p>
-</header>
-
-<main class="app-main">
-  <section class="viz-grid" aria-label="Live visualizers">
-    <article class="panel panel-wave">
-      <h2 class="panel-title" data-text="ui.waveform"></h2>
-      <canvas id="cv-wave" class="viz" aria-label="Waveform"></canvas>
-      <p class="panel-note" data-lesson="sound"></p>
-    </article>
-
-    <article class="panel panel-spectrum">
-      <h2 class="panel-title" data-text="ui.spectrum"></h2>
-      <div class="viz-wrap">
-        <canvas id="cv-spectrum" class="viz viz-tall" aria-label="Frequency spectrum"></canvas>
-        <span id="peak-tag" class="peak-tag" hidden>PEAK <b id="peak-hz"></b></span>
+<div class="ts-page">
+  <header class="ts-header panel">
+    <p class="narration" data-text="ui.narration"></p>
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path class="cap-side" d="M6 22 L14 8 H50 L58 22 V50 Q58 56 52 56 H12 Q6 56 6 50 Z"/>
+        <path class="cap-top" d="M15 12 H49 L53 34 Q53 40 47 40 H17 Q11 40 11 34 Z"/>
+        <path class="cap-wave" d="M18 26 Q21 18 24 26 T30 26 T36 26 Q39 20 42 26 T47 26"/>
+      </svg>
+      <div class="brand-text">
+        <h1 class="brand-name">ThockScope</h1>
+        <p class="brand-tag" data-text="ui.tagline"></p>
       </div>
-      <div class="zones" aria-hidden="true">
-        <span class="zone zone-low"><b>LOW</b> <small>THOCK zone</small></span>
-        <span class="zone zone-mid"><b>MID</b> <small>Body zone</small></span>
-        <span class="zone zone-high"><b>HIGH</b> <small>CLACK zone</small></span>
-      </div>
-      <p class="panel-note" data-lesson="spectrum"></p>
-    </article>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn btn-primary" id="btn-mic">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4"/><path d="M4.5 11a7.5 7.5 0 0 0 15 0M12 18.5V22M8 22h8"/></svg>
+        <span id="mic-text">Start Mic</span>
+      </button>
+      <input type="file" id="file-input" accept="audio/*,video/*" class="visually-hidden">
+      <label class="btn btn-secondary" for="file-input">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M6.5 9.5 12 4l5.5 5.5M4 15v4.5h16V15"/></svg>
+        <span>Upload Recording</span>
+      </label>
+      <button type="button" class="btn btn-secondary" id="btn-play" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path id="play-icon" d="M7 4.5v15l12-7.5z"/></svg>
+        <span id="play-text">Play</span>
+      </button>
+      <label class="sens">Sensitivity
+        <input id="sens" type="range" min="0" max="1" step="0.05" value="0.5">
+      </label>
+      <p class="status" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="status-text"></span></p>
+    </div>
+  </header>
 
-    <article class="panel panel-spectrogram">
-      <h2 class="panel-title" data-text="ui.spectrogram"></h2>
-      <canvas id="cv-spectrogram" class="viz" aria-label="Spectrogram"></canvas>
-      <p class="panel-note" data-lesson="spectrogram"></p>
-    </article>
+  <main class="ts-grid">
+    <section class="panel p-wave" aria-labelledby="h-wave">
+      <h2 class="panel-title" id="h-wave" data-text="ui.waveform"></h2>
+      <p class="caption" data-text="ui.waveCaption"></p>
+      <div class="chart chart-wave"><canvas id="cv-wave" aria-label="Waveform of the last few key presses"></canvas></div>
+    </section>
 
-    <article class="panel panel-profile">
-      <h2 class="panel-title" data-text="ui.profile"></h2>
-      <div class="meter" aria-label="Thock to clack meter">
-        <span class="meter-end meter-left" data-text="ui.meterLeft"></span>
-        <div class="meter-track"><div id="meter-needle" class="meter-needle"></div></div>
-        <span class="meter-end meter-right" data-text="ui.meterRight"></span>
+    <section class="panel p-profile" aria-labelledby="h-profile">
+      <h2 class="panel-title" id="h-profile" data-text="ui.profile"></h2>
+      <p class="caption" data-text="ui.profileCaption"></p>
+      <div class="profile-label">
+        <svg class="burst" viewBox="0 0 200 120" aria-hidden="true"><polygon class="burst-shape" points="100.0,2.0 112.5,20.6 135.2,2.8 136.0,25.4 161.1,16.9 155.2,34.3 174.7,34.5 167.7,46.3 196.5,49.9 172.0,60.0 201.3,70.6 167.7,73.7 182.3,88.1 155.2,85.7 155.4,99.1 136.0,94.6 133.5,114.5 112.5,99.4 100.0,120.9 87.5,99.4 67.5,112.9 64.0,94.6 44.6,99.1 44.8,85.7 15.1,89.0 32.3,73.7 -1.3,70.6 28.0,60.0 6.4,50.2 32.3,46.3 25.3,34.5 44.8,34.3 37.0,15.6 64.0,25.4 64.8,2.8 87.5,20.6"/></svg>
+        <strong class="profile-word" id="prof-word">?</strong>
       </div>
-      <p id="prof-name" class="profile-name">—</p>
-      <p id="prof-desc" class="profile-desc" data-text="ui.micHint"></p>
+      <div class="meter" id="meter" style="--pos:50%" role="meter" aria-label="Thock to clack" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+        <div class="meter-track"><span class="meter-fill"></span><span class="meter-needle"></span></div>
+        <div class="meter-ends"><span data-text="ui.meterLeft"></span><span data-text="ui.meterRight"></span></div>
+      </div>
       <dl class="stats">
-        <div><dt>Main pitch</dt><dd id="st-pitch">—</dd></div>
-        <div><dt>Brightness</dt><dd id="st-bright">—</dd></div>
-        <div><dt>Fade time</dt><dd id="st-decay">—</dd></div>
-        <div><dt>Keys heard</dt><dd id="st-count">0</dd></div>
+        <div class="stat"><dt>Pitch</dt><dd><span class="stat-num" id="st-pitch">—</span><span class="stat-unit">Hz</span></dd><dd class="stat-sub">the loudest note</dd></div>
+        <div class="stat"><dt>Brightness</dt><dd><span class="stat-num stat-word" id="st-bright">—</span></dd><dd class="stat-sub">center at <span id="st-centroid">—</span> Hz</dd></div>
       </dl>
-      <canvas id="cv-hit" class="viz viz-small" aria-label="Shape of the last key press"></canvas>
-    </article>
-  </section>
+      <p class="bubble bubble-say" id="prof-says"></p>
+    </section>
 
-  <section id="file-panel" class="panel panel-file" hidden>
-    <h2 class="panel-title">Your recording: <span id="file-name"></span></h2>
-    <canvas id="cv-overview" class="viz viz-small" aria-label="Whole recording, with each detected key press marked"></canvas>
-    <p class="panel-note">Each red tick is a key press ThockScope found. Click the recording to play from there.</p>
-  </section>
-
-  <section class="panel panel-report" aria-labelledby="report-title">
-    <div class="report-head">
-      <h2 id="report-title" class="panel-title">Report card</h2>
-      <div class="report-actions">
-        <button id="btn-pin" class="btn btn-small" type="button">Save as "Before"</button>
-        <button id="btn-unpin" class="btn btn-small" type="button" hidden>Clear "Before"</button>
-        <button id="btn-reset" class="btn btn-small" type="button">Start over</button>
+    <section class="panel p-spectrum" aria-labelledby="h-spectrum">
+      <h2 class="panel-title" id="h-spectrum" data-text="ui.spectrum"></h2>
+      <p class="caption" data-text="ui.spectrumCaption"></p>
+      <div class="chart chart-spectrum" id="spectrum-wrap">
+        <canvas id="cv-spectrum" aria-label="Frequency spectrum with low, mid and high zones"></canvas>
+        <span class="peak-tag" id="peak-tag" hidden>PEAK <b id="peak-hz"></b></span>
       </div>
-    </div>
-    <div class="report-body">
-      <div class="report-summary">
-        <p id="rep-headline" class="report-headline">Type some keys to get your report.</p>
-        <p id="rep-compare" class="report-compare" hidden></p>
-        <div class="bands" id="rep-bands"></div>
-        <ul id="rep-diagnosis" class="diagnosis-list"></ul>
+      <div class="zones" id="zones">
+        <span class="zone zone-low"><b>LOW</b> <small>thock</small></span>
+        <span class="zone zone-mid"><b>MID</b></span>
+        <span class="zone zone-high"><b>HIGH</b> <small>clack</small></span>
       </div>
-      <canvas id="cv-report" class="viz" aria-label="Average sound curve"></canvas>
-    </div>
-  </section>
+    </section>
 
-  <section id="learn" class="section section-learn" aria-labelledby="learn-title">
-    <h2 id="learn-title" class="section-title">How it works</h2>
-    <div class="demo panel" aria-labelledby="demo-title">
-      <h3 id="demo-title" class="panel-title" data-text="ui.demo"></h3>
-      <ol class="learn-strip">
-        <li><img class="learn-art" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20110%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Step%201%3A%20the%20smoothie%20(one%20mixed-up%20wave)%20--%3E%0A%20%20%3Cpath%20d%3D%22M40%208%20H160%20L148%20102%20H52%20Z%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M45%2034%20H155%20L148%20102%20H52%20Z%22%20fill%3D%22%239D5CFF%22%20fill-opacity%3D%22.3%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M54.0%2057.7%20L55.5%2056.9%20L57.0%2058.0%20L58.5%2063.5%20L60.0%2072.9%20L61.5%2082.3%20L63.0%2087.7%20L64.5%2087.3%20L66.0%2082.8%20L67.5%2078.3%20L69.0%2076.6%20L70.5%2077.5%20L72.0%2078.2%20L73.5%2076.3%20L75.0%2071.8%20L76.5%2067.5%20L78.0%2066.8%20L79.5%2070.7%20L81.0%2076.7%20L82.5%2080.5%20L84.0%2079.0%20L85.5%2072.6%20L87.0%2064.8%20L88.5%2059.2%20L90.0%2056.9%20L91.5%2056.0%20L93.0%2053.7%20L94.5%2048.8%20L96.0%2043.5%20L97.5%2041.3%20L99.0%2044.7%20L100.5%2052.4%20L102.0%2060.6%20L103.5%2065.0%20L105.0%2064.6%20L106.5%2061.5%20L108.0%2059.4%20L109.5%2060.4%20L111.0%2063.4%20L112.5%2065.7%20L114.0%2064.9%20L115.5%2062.1%20L117.0%2060.5%20L118.5%2063.4%20L120.0%2071.1%20L121.5%2080.8%20L123.0%2087.8%20L124.5%2089.5%20L126.0%2086.8%20L127.5%2082.9%20L129.0%2080.8%20L130.5%2080.8%20L132.0%2080.5%20L133.5%2077.0%20L135.0%2070.3%20L136.5%2062.9%20L138.0%2058.8%20L139.5%2060.2%20L141.0%2065.4%20L142.5%2070.3%20L144.0%2071.3%20L145.5%2067.8%22%20stroke%3D%22%23FF2E97%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E" alt=""><span><b>1.</b> A key press is a smoothie: many pitches blended into one messy wave.</span></li>
-        <li><img class="learn-art" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20110%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Step%202%3A%20the%20un-blender%20pulls%20out%20pure%20pitches%20--%3E%0A%20%20%3Cpath%20d%3D%22M52%206%20H148%20L138%2084%20H62%20Z%22%20fill%3D%22%2329F0FF%22%20fill-opacity%3D%22.06%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Crect%20x%3D%2256%22%20y%3D%2284%22%20width%3D%2288%22%20height%3D%2220%22%20rx%3D%223%22%20fill%3D%22%2322283F%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M62.0%2024.0%20L64.0%2026.0%20L66.0%2027.9%20L68.0%2029.6%20L70.0%2031.0%20L72.0%2032.1%20L74.0%2032.7%20L76.0%2033.0%20L78.0%2032.8%20L80.0%2032.2%20L82.0%2031.2%20L84.0%2029.8%20L86.0%2028.1%20L88.0%2026.3%20L90.0%2024.3%20L92.0%2022.3%20L94.0%2020.4%20L96.0%2018.7%20L98.0%2017.2%20L100.0%2016.1%20L102.0%2015.3%20L104.0%2015.0%20L106.0%2015.1%20L108.0%2015.7%20L110.0%2016.7%20L112.0%2018.0%20L114.0%2019.6%20L116.0%2021.5%20L118.0%2023.5%20L120.0%2025.4%20L122.0%2027.4%20L124.0%2029.1%20L126.0%2030.6%20L128.0%2031.8%20L130.0%2032.6%20L132.0%2033.0%20L134.0%2032.9%20L136.0%2032.4%20L138.0%2031.5%22%20stroke%3D%22%23FF2E97%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M64.0%2046.0%20L65.0%2047.9%20L66.0%2049.7%20L67.0%2051.2%20L68.0%2052.3%20L69.0%2052.9%20L70.0%2053.0%20L71.0%2052.5%20L72.0%2051.6%20L73.0%2050.2%20L74.0%2048.5%20L75.0%2046.6%20L76.0%2044.7%20L77.0%2042.8%20L78.0%2041.2%20L79.0%2040.0%20L80.0%2039.2%20L81.0%2039.0%20L82.0%2039.3%20L83.0%2040.1%20L84.0%2041.3%20L85.0%2043.0%20L86.0%2044.8%20L87.0%2046.7%20L88.0%2048.6%20L89.0%2050.3%20L90.0%2051.6%20L91.0%2052.6%20L92.0%2053.0%20L93.0%2052.9%20L94.0%2052.2%20L95.0%2051.1%20L96.0%2049.6%20L97.0%2047.8%20L98.0%2045.9%20L99.0%2043.9%20L100.0%2042.2%20L101.0%2040.7%20L102.0%2039.7%20L103.0%2039.1%20L104.0%2039.0%20L105.0%2039.5%20L106.0%2040.5%20L107.0%2041.9%20L108.0%2043.6%20L109.0%2045.5%20L110.0%2047.5%20L111.0%2049.3%20L112.0%2050.9%20L113.0%2052.1%20L114.0%2052.8%20L115.0%2053.0%20L116.0%2052.7%20L117.0%2051.8%20L118.0%2050.6%20L119.0%2048.9%20L120.0%2047.1%20L121.0%2045.1%20L122.0%2043.3%20L123.0%2041.6%20L124.0%2040.3%20L125.0%2039.4%20L126.0%2039.0%20L127.0%2039.2%20L128.0%2039.9%20L129.0%2041.0%20L130.0%2042.5%20L131.0%2044.3%20L132.0%2046.3%20L133.0%2048.2%20L134.0%2049.9%20L135.0%2051.4%20L136.0%2052.4%22%20stroke%3D%22%239D5CFF%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M67.0%2066.0%20L67.8%2068.4%20L68.5%2070.2%20L69.3%2071.0%20L70.0%2070.5%20L70.8%2069.0%20L71.5%2066.7%20L72.3%2064.2%20L73.0%2062.2%20L73.8%2061.1%20L74.5%2061.2%20L75.3%2062.5%20L76.0%2064.6%20L76.8%2067.1%20L77.5%2069.3%20L78.3%2070.7%20L79.0%2070.9%20L79.8%2070.0%20L80.5%2068.1%20L81.3%2065.6%20L82.0%2063.3%20L82.8%2061.6%20L83.5%2061.0%20L84.3%2061.6%20L85.0%2063.3%20L85.8%2065.7%20L86.5%2068.1%20L87.3%2070.0%20L88.0%2071.0%20L88.8%2070.7%20L89.5%2069.3%20L90.3%2067.0%20L91.0%2064.6%20L91.8%2062.4%20L92.5%2061.2%20L93.3%2061.1%20L94.0%2062.2%20L94.8%2064.3%20L95.5%2066.7%20L96.3%2069.0%20L97.0%2070.6%20L97.8%2071.0%20L98.5%2070.2%20L99.3%2068.4%20L100.0%2066.0%20L100.8%2063.6%20L101.5%2061.8%20L102.3%2061.0%20L103.0%2061.5%20L103.8%2063.0%20L104.5%2065.3%20L105.3%2067.8%20L106.0%2069.8%20L106.8%2070.9%20L107.5%2070.8%20L108.3%2069.5%20L109.0%2067.4%20L109.8%2064.9%20L110.5%2062.7%20L111.3%2061.3%20L112.0%2061.1%20L112.8%2062.0%20L113.5%2064.0%20L114.3%2066.4%20L115.0%2068.8%20L115.8%2070.4%20L116.5%2071.0%20L117.3%2070.4%20L118.0%2068.6%20L118.8%2066.3%20L119.5%2063.9%20L120.3%2062.0%20L121.0%2061.0%20L121.8%2061.3%20L122.5%2062.8%20L123.3%2065.0%20L124.0%2067.5%20L124.8%2069.6%20L125.5%2070.8%20L126.3%2070.9%20L127.0%2069.7%20L127.8%2067.7%20L128.5%2065.2%20L129.3%2062.9%20L130.0%2061.4%20L130.8%2061.0%20L131.5%2061.8%20L132.3%2063.7%20L133.0%2066.1%22%20stroke%3D%22%2329F0FF%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E" alt=""><span><b>2.</b> The Fourier transform un-blends it, testing every pitch: "how much of you is in here?"</span></li>
-        <li><img class="learn-art" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20110%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Step%203%3A%20the%20fruit%20list%20%3D%20the%20spectrum%20(strawberry%20low%2C%20banana%20mid%2C%20blueberry%20high%2C%20matching%20the%20app%20demo)%20--%3E%0A%20%20%3Crect%20x%3D%2226%22%20y%3D%2240%22%20width%3D%2240%22%20height%3D%2256%22%20fill%3D%22%23FF2E97%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Crect%20x%3D%2280%22%20y%3D%2262%22%20width%3D%2240%22%20height%3D%2234%22%20fill%3D%22%239D5CFF%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Crect%20x%3D%22134%22%20y%3D%2276%22%20width%3D%2240%22%20height%3D%2220%22%20fill%3D%22%2329F0FF%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M34%2014%20Q46%206%2058%2014%20Q56%2028%2046%2034%20Q36%2028%2034%2014%20Z%22%20fill%3D%22%23FF2E97%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M84%2056%20Q88%2034%20108%2032%20Q104%2038%20105%2044%20Q104%2056%2088%2060%20Z%22%20fill%3D%22%23F3D36B%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22154%22%20cy%3D%2266%22%20r%3D%228%22%20fill%3D%22%2329F0FF%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M18%2096%20H184%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E" alt=""><span><b>3.</b> Out comes the fruit list: how loud each pitch is. That's the spectrum!</span></li>
-      </ol>
-      <p class="demo-intro">Turn the fruits up and down. The top shows the blended smoothie (the wave you'd hear). The bottom shows what the Fourier transform finds inside it.</p>
-      <div id="demo-controls" class="demo-controls"></div>
-      <canvas id="cv-demo-wave" class="viz viz-small" aria-label="Blended wave"></canvas>
-      <canvas id="cv-demo-spec" class="viz viz-small" aria-label="Fourier transform of the blend"></canvas>
-    </div>
-    <div id="lessons" class="cards lessons"></div>
-  </section>
+    <section class="panel p-spectro" aria-labelledby="h-spectro">
+      <h2 class="panel-title" id="h-spectro" data-text="ui.spectrogram"></h2>
+      <p class="caption" data-text="ui.spectrogramCaption"></p>
+      <div class="chart chart-spectro">
+        <canvas id="cv-spectrogram" aria-label="Spectrogram of the last four seconds"></canvas>
+        <span class="axis-tag axis-high">HIGH</span><span class="axis-tag axis-low">LOW</span><span class="axis-tag axis-now">NOW</span>
+      </div>
+    </section>
 
-  <section id="recipes" class="section section-recipes" aria-labelledby="recipes-title">
-    <h2 id="recipes-title" class="section-title">Sound recipes</h2>
-    <p class="section-intro">Pick what you want. Each recipe tells you what to change and what you'll see on the graph.</p>
-    <div id="recipe-filters" class="chips" role="group" aria-label="Filter recipes"></div>
-    <div id="recipe-list" class="cards recipes"></div>
-  </section>
+    <section class="panel p-file" id="file-panel" aria-labelledby="h-file" hidden>
+      <h2 class="panel-title" id="h-file">Your recording</h2>
+      <p class="caption"><b id="file-name"></b> · Each pink tick is a key press ThockScope found. Tap the recording to play from there.</p>
+      <div class="chart chart-overview"><canvas id="cv-overview" aria-label="Whole recording, with each detected key press marked"></canvas></div>
+    </section>
 
-  <section id="parts" class="section section-parts" aria-labelledby="parts-title">
-    <h2 id="parts-title" class="section-title">Keyboard parts &amp; their sound</h2>
-    <div id="part-list" class="cards parts"></div>
-  </section>
+    <section class="panel p-report" aria-labelledby="h-report">
+      <div class="report-head">
+        <h2 class="panel-title" id="h-report">Report Card</h2>
+        <div class="report-actions">
+          <button id="btn-pin" class="btn btn-secondary btn-small" type="button">Save as "Before"</button>
+          <button id="btn-unpin" class="btn btn-secondary btn-small" type="button" hidden>Clear "Before"</button>
+          <button id="btn-reset" class="btn btn-secondary btn-small" type="button">Start over</button>
+        </div>
+      </div>
+      <div class="report-body">
+        <div class="report-summary">
+          <p id="rep-headline" class="report-headline">Type some keys to get your report.</p>
+          <p id="rep-compare" class="report-compare" hidden></p>
+          <div class="bands" id="rep-bands"></div>
+          <ul id="rep-diagnosis" class="diagnosis-list"></ul>
+        </div>
+        <div class="chart chart-report"><canvas id="cv-report" aria-label="Average sound curve of all key presses"></canvas></div>
+      </div>
+    </section>
 
-  <section class="section section-tips" aria-labelledby="tips-title">
-    <h2 id="tips-title" class="section-title">Recording tips</h2>
-    <ul id="tips" class="tips"></ul>
-    <h2 class="section-title">Word list</h2>
-    <dl id="glossary" class="glossary"></dl>
-  </section>
-</main>
+    <section class="panel p-learn" id="learn" aria-labelledby="h-learn">
+      <h2 class="panel-title" id="h-learn">How it works: the Fourier transform</h2>
+      <div class="steps">
+        <figure class="step">
+          <svg class="step-art" viewBox="0 0 200 110" aria-hidden="true">
+            <path class="art-cup" d="M40 8 H160 L148 102 H52 Z"/>
+            <path class="art-liquid" d="M45 34 H155 L148 102 H52 Z"/>
+            <path class="art-wave" d="M54.0 57.7 L55.5 56.9 L57.0 58.0 L58.5 63.5 L60.0 72.9 L61.5 82.3 L63.0 87.7 L64.5 87.3 L66.0 82.8 L67.5 78.3 L69.0 76.6 L70.5 77.5 L72.0 78.2 L73.5 76.3 L75.0 71.8 L76.5 67.5 L78.0 66.8 L79.5 70.7 L81.0 76.7 L82.5 80.5 L84.0 79.0 L85.5 72.6 L87.0 64.8 L88.5 59.2 L90.0 56.9 L91.5 56.0 L93.0 53.7 L94.5 48.8 L96.0 43.5 L97.5 41.3 L99.0 44.7 L100.5 52.4 L102.0 60.6 L103.5 65.0 L105.0 64.6 L106.5 61.5 L108.0 59.4 L109.5 60.4 L111.0 63.4 L112.5 65.7 L114.0 64.9 L115.5 62.1 L117.0 60.5 L118.5 63.4 L120.0 71.1 L121.5 80.8 L123.0 87.8 L124.5 89.5 L126.0 86.8 L127.5 82.9 L129.0 80.8 L130.5 80.8 L132.0 80.5 L133.5 77.0 L135.0 70.3 L136.5 62.9 L138.0 58.8 L139.5 60.2 L141.0 65.4 L142.5 70.3 L144.0 71.3 L145.5 67.8"/>
+          </svg>
+          <figcaption><b>1. The smoothie</b> A key press is lots of pitches mixed together, like fruit blended into a smoothie. You hear one sound.</figcaption>
+        </figure>
+        <figure class="step">
+          <svg class="step-art" viewBox="0 0 200 110" aria-hidden="true">
+            <path class="art-jar" d="M52 6 H148 L138 84 H62 Z"/>
+            <rect class="art-base" x="56" y="84" width="88" height="20" rx="3"/>
+            <path class="art-low" d="M62.0 24.0 L64.0 26.0 L66.0 27.9 L68.0 29.6 L70.0 31.0 L72.0 32.1 L74.0 32.7 L76.0 33.0 L78.0 32.8 L80.0 32.2 L82.0 31.2 L84.0 29.8 L86.0 28.1 L88.0 26.3 L90.0 24.3 L92.0 22.3 L94.0 20.4 L96.0 18.7 L98.0 17.2 L100.0 16.1 L102.0 15.3 L104.0 15.0 L106.0 15.1 L108.0 15.7 L110.0 16.7 L112.0 18.0 L114.0 19.6 L116.0 21.5 L118.0 23.5 L120.0 25.4 L122.0 27.4 L124.0 29.1 L126.0 30.6 L128.0 31.8 L130.0 32.6 L132.0 33.0 L134.0 32.9 L136.0 32.4 L138.0 31.5"/>
+            <path class="art-mid" d="M64.0 46.0 L65.0 47.9 L66.0 49.7 L67.0 51.2 L68.0 52.3 L69.0 52.9 L70.0 53.0 L71.0 52.5 L72.0 51.6 L73.0 50.2 L74.0 48.5 L75.0 46.6 L76.0 44.7 L77.0 42.8 L78.0 41.2 L79.0 40.0 L80.0 39.2 L81.0 39.0 L82.0 39.3 L83.0 40.1 L84.0 41.3 L85.0 43.0 L86.0 44.8 L87.0 46.7 L88.0 48.6 L89.0 50.3 L90.0 51.6 L91.0 52.6 L92.0 53.0 L93.0 52.9 L94.0 52.2 L95.0 51.1 L96.0 49.6 L97.0 47.8 L98.0 45.9 L99.0 43.9 L100.0 42.2 L101.0 40.7 L102.0 39.7 L103.0 39.1 L104.0 39.0 L105.0 39.5 L106.0 40.5 L107.0 41.9 L108.0 43.6 L109.0 45.5 L110.0 47.5 L111.0 49.3 L112.0 50.9 L113.0 52.1 L114.0 52.8 L115.0 53.0 L116.0 52.7 L117.0 51.8 L118.0 50.6 L119.0 48.9 L120.0 47.1 L121.0 45.1 L122.0 43.3 L123.0 41.6 L124.0 40.3 L125.0 39.4 L126.0 39.0 L127.0 39.2 L128.0 39.9 L129.0 41.0 L130.0 42.5 L131.0 44.3 L132.0 46.3 L133.0 48.2 L134.0 49.9 L135.0 51.4 L136.0 52.4"/>
+            <path class="art-high" d="M67.0 66.0 L67.8 68.4 L68.5 70.2 L69.3 71.0 L70.0 70.5 L70.8 69.0 L71.5 66.7 L72.3 64.2 L73.0 62.2 L73.8 61.1 L74.5 61.2 L75.3 62.5 L76.0 64.6 L76.8 67.1 L77.5 69.3 L78.3 70.7 L79.0 70.9 L79.8 70.0 L80.5 68.1 L81.3 65.6 L82.0 63.3 L82.8 61.6 L83.5 61.0 L84.3 61.6 L85.0 63.3 L85.8 65.7 L86.5 68.1 L87.3 70.0 L88.0 71.0 L88.8 70.7 L89.5 69.3 L90.3 67.0 L91.0 64.6 L91.8 62.4 L92.5 61.2 L93.3 61.1 L94.0 62.2 L94.8 64.3 L95.5 66.7 L96.3 69.0 L97.0 70.6 L97.8 71.0 L98.5 70.2 L99.3 68.4 L100.0 66.0 L100.8 63.6 L101.5 61.8 L102.3 61.0 L103.0 61.5 L103.8 63.0 L104.5 65.3 L105.3 67.8 L106.0 69.8 L106.8 70.9 L107.5 70.8 L108.3 69.5 L109.0 67.4 L109.8 64.9 L110.5 62.7 L111.3 61.3 L112.0 61.1 L112.8 62.0 L113.5 64.0 L114.3 66.4 L115.0 68.8 L115.8 70.4 L116.5 71.0 L117.3 70.4 L118.0 68.6 L118.8 66.3 L119.5 63.9 L120.3 62.0 L121.0 61.0 L121.8 61.3 L122.5 62.8 L123.3 65.0 L124.0 67.5 L124.8 69.6 L125.5 70.8 L126.3 70.9 L127.0 69.7 L127.8 67.7 L128.5 65.2 L129.3 62.9 L130.0 61.4 L130.8 61.0 L131.5 61.8 L132.3 63.7 L133.0 66.1"/>
+          </svg>
+          <figcaption><b>2. Un-blend it</b> The Fourier transform is a magic un-blender. It tests the sound against every pitch, one at a time, and pulls each one back out.</figcaption>
+        </figure>
+        <figure class="step">
+          <svg class="step-art" viewBox="0 0 200 110" aria-hidden="true">
+            <rect class="art-bar art-bar-low" x="26" y="40" width="40" height="56"/>
+            <rect class="art-bar art-bar-mid" x="80" y="62" width="40" height="34"/>
+            <rect class="art-bar art-bar-high" x="134" y="76" width="40" height="20"/>
+            <path class="art-fruit fruit-a" d="M30 30 Q34 8 54 6 Q50 12 51 18 Q50 30 34 34 Z"/>
+            <path class="art-fruit fruit-b" d="M88 38 Q100 30 112 38 Q110 52 100 58 Q90 52 88 38 Z"/>
+            <circle class="art-fruit fruit-c" cx="154" cy="66" r="8"/>
+            <path class="art-axis" d="M18 96 H184"/>
+          </svg>
+          <figcaption><b>3. The fruit list</b> Out comes a list of how much of each pitch was inside: lots of low "banana", a little high "berry". That list is the spectrum.</figcaption>
+        </figure>
+      </div>
+      <p class="bubble bubble-tip" data-text="ui.learnTip"></p>
 
-<footer class="app-footer">
-  <p>ThockScope runs entirely in your browser. Your audio never leaves your computer.</p>
-</footer>
+      <div class="demo">
+        <h3 class="sub-title" data-text="ui.demo"></h3>
+        <p class="caption" data-text="ui.demoCaption"></p>
+        <div id="demo-controls" class="demo-controls"></div>
+        <div class="chart chart-demo"><canvas id="cv-demo-wave" aria-label="Blended wave"></canvas></div>
+        <div class="chart chart-demo"><canvas id="cv-demo-spec" aria-label="Fourier transform of the blend"></canvas></div>
+      </div>
+
+      <h3 class="sub-title">More about sound</h3>
+      <div id="lessons" class="cards"></div>
+    </section>
+
+    <section class="panel p-recipes" id="recipes" aria-labelledby="h-recipes">
+      <h2 class="panel-title" id="h-recipes">Sound Recipes</h2>
+      <p class="caption">Pick a goal. Change one thing at a time, then record again to compare.</p>
+      <div id="recipe-filters" class="chips" role="group" aria-label="Filter recipes"></div>
+      <div id="recipe-list" class="recipes"></div>
+    </section>
+
+    <section class="panel p-parts" aria-labelledby="h-parts">
+      <h2 class="panel-title" id="h-parts">Keyboard Parts &amp; Their Sound</h2>
+      <p class="caption">Every part of a keyboard changes how it sounds. Here's what each one does.</p>
+      <div id="part-list" class="cards"></div>
+    </section>
+
+    <section class="panel p-tips" aria-labelledby="h-tips">
+      <h2 class="panel-title" id="h-tips">Recording Tips &amp; Word List</h2>
+      <div class="tips-grid">
+        <ul id="tips" class="tips"></ul>
+        <dl id="glossary" class="glossary"></dl>
+      </div>
+    </section>
+  </main>
+
+  <footer class="ts-foot">ThockScope runs entirely in your browser. Your audio never leaves your computer.</footer>
+</div>
 
 <script>
 /*
@@ -1046,7 +1028,13 @@ input[type="range"] { accent-color: var(--noir-cyan); }
           emit('keystroke', hit);
         });
         this._detector.setSensitivity(this.sensitivity);
-        proc.onaudioprocess = (e) => { if (this.state === 'mic' || this.state === 'file-playing') this._detector.push(e.inputBuffer.getChannelData(0)); };
+        proc.onaudioprocess = (e) => {
+          if (this.state !== 'mic' && this.state !== 'file-playing') return;
+          const block = e.inputBuffer.getChannelData(0);
+          this._detector.push(block);
+          // Every raw block, gap-free (for scrolling waveforms). The array is reused: copy if you keep it.
+          if (listeners.samples && listeners.samples.length) emit('samples', { data: block, sampleRate: this.ctx.sampleRate, time: e.playbackTime });
+        };
       }
       if (this.ctx.state === 'suspended') this.ctx.resume();
       return this.ctx;
@@ -1301,11 +1289,11 @@ input[type="range"] { accent-color: var(--noir-cyan); }
 
   /** Sound profile descriptions (ids match ThockEngine.PROFILES). */
   const profiles = {
-    'deep-thock': { name: 'Deep Thock', soundsLike: 'a soft wooden "thud", like tapping a closed book', text: 'Almost all the sound is low. Very muted and deep.' },
-    'thock':      { name: 'Thock',      soundsLike: 'a rounded "thok", like a marble dropped on wood', text: 'Mostly low with a little bit of click on top.' },
-    'creamy':     { name: 'Creamy',     soundsLike: 'a smooth, soft "tock" with no harsh edges', text: 'Balanced: some low, some middle, not much harsh high end.' },
-    'clack':      { name: 'Clack',      soundsLike: 'a crisp "clack", like plastic tapping plastic', text: 'Lots of middle and high sound. Snappy and lively.' },
-    'sharp-clack':{ name: 'Sharp Clack',soundsLike: 'a bright "tick!", like a pen clicking', text: 'Mostly high, sharp sound. Very bright and loud-feeling.' },
+    'deep-thock': { name: 'Deep Thock', word: 'THOCK!', says: 'Super deep and muted. Big thock!', soundsLike: 'a soft wooden "thud", like tapping a closed book', text: 'Almost all the sound is low. Very muted and deep.' },
+    'thock':      { name: 'Thock', word: 'THOCKY', says: 'Deep and round. Nice thock!',      soundsLike: 'a rounded "thok", like a marble dropped on wood', text: 'Mostly low with a little bit of click on top.' },
+    'creamy':     { name: 'Creamy', word: 'CREAMY', says: 'Right in the middle. Smooth!',     soundsLike: 'a smooth, soft "tock" with no harsh edges', text: 'Balanced: some low, some middle, not much harsh high end.' },
+    'clack':      { name: 'Clack', word: 'CLACKY', says: 'Sharp and snappy. Clack attack!',      soundsLike: 'a crisp "clack", like plastic tapping plastic', text: 'Lots of middle and high sound. Snappy and lively.' },
+    'sharp-clack':{ name: 'Sharp Clack', word: 'CLACK!', says: 'Bright and crispy. Max clack!',soundsLike: 'a bright "tick!", like a pen clicking', text: 'Mostly high, sharp sound. Very bright and loud-feeling.' },
   };
 
   /** The parts of a keyboard and what each does to the sound. */
@@ -1566,273 +1554,345 @@ input[type="range"] { accent-color: var(--noir-cyan); }
 
   /** Short labels used around the visualisers. */
   const ui = {
-    tagline: 'See what your keyboard sounds like.',
-    waveform: 'WAVE — the sound as wiggles',
-    spectrum: 'SPECTRUM — which pitches are inside',
-    spectrogram: 'SPECTROGRAM — pitches over time',
-    profile: 'SOUND PROFILE',
-    demo: 'TRY IT: the smoothie machine',
-    meterLeft: 'CLACK',
-    meterRight: 'THOCK',
-    micHint: 'Press Start Mic, then type on your keyboard!',
+    tagline: 'See what your keyboard sounds like',
+    narration: 'Meanwhile, at the keyboard…',
+    waveform: 'Waveform',
+    waveCaption: 'Each spike is one key press: a big hit going down, a smaller one coming back up.',
+    spectrum: 'Frequency Spectrum',
+    spectrumCaption: 'Which pitches are inside the sound. Tall bars on the left mean deep. Tall bars on the right mean bright.',
+    spectrogram: 'Spectrogram',
+    spectrogramCaption: 'The spectrum over time, newest on the right. Each bright stripe is a key press.',
+    profile: 'Sound Profile',
+    profileCaption: 'Your last key press',
+    demo: 'Try it: the smoothie machine',
+    demoCaption: 'Slide the fruits up and down. Top: the blended smoothie (the wave you hear). Bottom: what the Fourier transform finds inside it.',
+    learnTip: 'Thocky keyboards have lots of banana. Clacky keyboards have lots of berry.',
+    meterLeft: 'THOCK',
+    meterRight: 'CLACK',
+    idle: 'Press Start Mic, then type on your keyboard!',
+    sample: 'Showing a sample key press. Press Start Mic and type to see yours!',
   };
 
-  global.ThockContent = { lessons, profiles, parts, recipes, diagnosis, recordingTips, glossary, ui };
+  /** Brightness word from the centroid (Hz). */
+  function brightnessWord(hz) { return hz < 1500 ? 'Mellow' : hz < 2300 ? 'Medium' : 'Bright'; }
+
+  global.ThockContent = { lessons, profiles, parts, recipes, diagnosis, recordingTips, glossary, ui, brightnessWord };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
 <script>
 /*
- * ThockScope — ui.js
- * Baseline UI: draws the canvases, renders content, wires the buttons.
- * Colors come from CSS variables (--c-*, --spec-*) so a new design can restyle
- * everything from CSS alone. Requires fft.js, engine.js, content.js.
+ * ThockScope — ui.js  (Neon Noir front end)
+ * Draws the charts exactly the way the chosen Neon Noir mockup does, but from real
+ * engine data: a scrolling waveform of the last 1.6 s, hatched glowing spectrum bars
+ * with a smooth curve, and a cell spectrogram of the last 4 s.
+ * Colors come from the CSS variables in css/app.css. Requires fft.js, engine.js, content.js.
  */
 (function () {
   'use strict';
-  const E = window.ThockEngine;
-  const C = window.ThockContent;
+  const E = window.ThockEngine, C = window.ThockContent, F = window.ThockFFT;
+  const root = document.documentElement;
   const $ = (sel) => document.querySelector(sel);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const nowS = () => performance.now() / 1000;
 
-  // ------------------------------------------------------------ theme colors
+  // ------------------------------------------------------------ colors
   let col = {};
+  let pats = {};
   function readColors() {
-    const cs = getComputedStyle(document.documentElement);
-    const v = (n) => cs.getPropertyValue(n).trim();
+    const cs = getComputedStyle(root), v = (n) => cs.getPropertyValue(n).trim();
     col = {
-      bg: v('--c-bg'), grid: v('--c-grid'), text: v('--c-text'), wave: v('--c-wave'), bar: v('--c-bar'),
-      curve: v('--c-curve'), pin: v('--c-pin'), low: v('--c-low'), mid: v('--c-mid'), high: v('--c-high'),
-      hit: v('--c-hit'), fruits: [v('--c-fruit-1'), v('--c-fruit-2'), v('--c-fruit-3')],
-      spec: [v('--spec-0'), v('--spec-1'), v('--spec-2'), v('--spec-3'), v('--spec-4')],
-      font: v('--font') || 'sans-serif',
-      // optional per-zone bar colors + neon glow (fall back to the single bar color / no glow)
-      barLow: v('--c-bar-low'), barMid: v('--c-bar-mid'), barHigh: v('--c-bar-high'),
-      glow: parseFloat(v('--c-glow')) || 0,
+      pink: v('--pink'), violet: v('--violet'), cyan: v('--cyan'), chalk: v('--chalk'), dim: v('--chalk-dim'),
+      edge: v('--edge'), grid: v('--grid'), well: v('--well') || '#070912', caption: v('--caption'), ink: v('--ink') || '#000',
+      ramp: ['--s0', '--s1', '--s2', '--s3', '--s4'].map(v),
+      fruits: [v('--fruit-a'), v('--fruit-b'), v('--fruit-c')],
+      font: v('--font-data') || 'sans-serif',
     };
-    buildSpecLUT();
+    col.zones = [col.pink, col.violet, col.cyan];
+    pats = {};
+  }
+  const font = (px, w) => `${w || 600} ${Math.round(px * DPR)}px ${col.font}`;
+
+  function ctxFor(c) {
+    const r = c.getBoundingClientRect();
+    const w = Math.max(2, Math.round(r.width * DPR)), h = Math.max(2, Math.round(r.height * DPR));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h); g.shadowBlur = 0; g.setLineDash([]);
+    return g;
+  }
+  /** Diagonal ink hatching, like the mockup's bars. */
+  function hatch(g, color) {
+    const id = g.canvas.id + color;
+    if (pats[id]) return pats[id];
+    const s = Math.round(7 * DPR), p = document.createElement('canvas'); p.width = p.height = s;
+    const q = p.getContext('2d'); q.strokeStyle = color; q.lineWidth = Math.max(1, s * 0.16);
+    q.beginPath(); q.moveTo(-1, s + 1); q.lineTo(s + 1, -1); q.moveTo(-1, 1); q.lineTo(1, -1); q.moveTo(s - 1, s + 1); q.lineTo(s + 1, s - 1); q.stroke();
+    return (pats[id] = g.createPattern(p, 'repeat'));
   }
 
-  // ------------------------------------------------------------ canvas setup
-  const canvases = {};
-  function canvas(id) {
-    if (canvases[id]) return canvases[id];
-    const cv = document.getElementById(id);
-    const c = { cv, ctx: cv.getContext('2d'), w: 0, h: 0, dpr: 1 };
-    canvases[id] = c;
-    fit(c);
-    return c;
-  }
-  function fit(c) {
-    const r = c.cv.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
-    if (w === c.w && h === c.h && dpr === c.dpr) return false;
-    c.cv.width = w * dpr; c.cv.height = h * dpr; c.w = w; c.h = h; c.dpr = dpr;
-    c.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    return true;
-  }
+  // ------------------------------------------------------------ frequency axis (same as the mockup)
+  const FMIN = 60, FMAX = 12000, LR = Math.log(FMAX / FMIN);
+  const fx = (f) => Math.log(f / FMIN) / LR;
+  const xf = (x) => FMIN * Math.exp(x * LR);
+  const ZONES = [E.BANDS[0].to, E.BANDS[1].to];
+  const zoneOf = (f) => (f < ZONES[0] ? 0 : f < ZONES[1] ? 1 : 2);
+  const NB = 36; // bars (and spectrogram rows)
 
-  // ------------------------------------------------------------ axes
-  const LMIN = Math.log(40), LMAX = Math.log(16000);
-  const xOfHz = (hz, w) => ((Math.log(hz) - LMIN) / (LMAX - LMIN)) * w;
-  const TICKS = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
-  const fmtHz = (hz) => (hz >= 1000 ? (hz / 1000).toFixed(hz >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : Math.round(hz) + '');
-
-  function drawFreqBackdrop(c, labels = true) {
-    const { ctx, w, h } = c;
-    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
-    const zoneCol = { low: col.low, mid: col.mid, high: col.high };
-    ctx.font = `600 10px ${col.font}`;
-    for (const b of E.BANDS) {
-      const x0 = xOfHz(b.from, w), x1 = xOfHz(b.to, w);
-      ctx.fillStyle = zoneCol[b.id]; ctx.fillRect(x0, 0, x1 - x0, h);
-      if (labels) { ctx.fillStyle = col.text; ctx.textAlign = 'center'; ctx.fillText(b.nick.toUpperCase(), (x0 + x1) / 2, 12); }
+  // Map the engine's 96 log bins onto the 36 bars.
+  const binsHz = E.summarize([]).binsHz;
+  const barMap = [];
+  for (let i = 0; i < NB; i++) {
+    const lo = xf(i / NB), hi = xf((i + 1) / NB), idx = [];
+    for (let b = 0; b < binsHz.length; b++) if (binsHz[b] >= lo && binsHz[b] < hi) idx.push(b);
+    if (!idx.length) { let best = 0; for (let b = 1; b < binsHz.length; b++) if (Math.abs(Math.log(binsHz[b] / xf((i + 0.5) / NB))) < Math.abs(Math.log(binsHz[best] / xf((i + 0.5) / NB)))) best = b; idx.push(best); }
+    barMap.push(idx);
+  }
+  function toBars(binsDb, out) {
+    out = out || new Float32Array(NB);
+    for (let i = 0; i < NB; i++) {
+      let p = 0; for (const b of barMap[i]) p += Math.pow(10, binsDb[b] / 10);
+      out[i] = 10 * Math.log10(p / barMap[i].length + 1e-20);
     }
-    ctx.strokeStyle = col.grid; ctx.lineWidth = 1; ctx.fillStyle = col.text; ctx.textAlign = 'center';
-    for (const t of TICKS) {
-      const x = Math.round(xOfHz(t, w)) + 0.5;
-      ctx.beginPath(); ctx.moveTo(x, 18); ctx.lineTo(x, h - 14); ctx.stroke();
-      if (labels) ctx.fillText(fmtHz(t) + (t === 50 ? ' Hz' : ''), x, h - 3);
-    }
+    return out;
   }
 
-  /** Bars + smooth curve on a log frequency axis. */
-  function drawSpectrum(c, hz, barsDb, curveDb, opts = {}) {
-    const { ctx, w, h } = c;
-    const top = opts.top ?? -20, bottom = opts.bottom ?? -100;
-    const y = (db) => 18 + (1 - Math.max(0, Math.min(1, (db - bottom) / (top - bottom)))) * (h - 34);
-    drawFreqBackdrop(c, opts.labels !== false);
-    if (barsDb) {
-      const zoneColor = (f) => (f < E.BANDS[0].to ? col.barLow : f < E.BANDS[1].to ? col.barMid : col.barHigh) || col.bar;
-      const n = hz.length, bw = w / n;
-      ctx.save();
-      ctx.shadowBlur = col.glow;
-      for (let i = 0; i < n; i++) {
-        const x = xOfHz(hz[i], w) - bw / 2, yy = y(barsDb[i]);
-        ctx.fillStyle = ctx.shadowColor = zoneColor(hz[i]);
-        ctx.fillRect(x + 0.5, yy, Math.max(1, bw - 1.5), h - 16 - yy);
+  // ------------------------------------------------------------ live display state
+  const WAVE_WIN = 1.6, SG_WIN = 4.0, WAVE_COL = 0.004; // seconds
+  let waveCols = [];            // {t, top, bot}
+  let waveRef = 0.02;           // loudest recent wiggle (auto-zoom)
+  let specCols = [];            // {t, v: Float32Array(NB) 0..1}
+  const holdDb = new Float32Array(NB).fill(-160);
+  let topDb = -60;              // auto-range top for bars (loudest recent level)
+  let noiseDb = null;           // room noise level, so silence stays dark
+  let lastFrameT = 0;
+  let warm = 0;
+  let viewT = nowS();           // the "NOW" edge of the scrolling charts
+
+  function resetDisplay() {
+    waveCols = []; specCols = []; holdDb.fill(-160); topDb = -60; noiseDb = null; waveRef = 0.02; lastFrameT = 0; waveClock = 0; warm = 0;
+  }
+  function normDb(db) {
+    const lo = Math.max(topDb - 50, (noiseDb == null ? -200 : noiseDb + 12));
+    return clamp((db - lo) / (topDb + 3 - lo), 0, 1);
+  }
+
+  /** Waveform: split a block of raw samples (starting at time t0) into 4 ms columns. */
+  function pushWave(samples, t0, sr) {
+    const per = Math.max(1, Math.round(sr * WAVE_COL));
+    for (let s = 0; s < samples.length; s += per) {
+      let mx = 0, mn = 0;
+      for (let i = s; i < Math.min(samples.length, s + per); i++) { const x = samples[i]; if (x > mx) mx = x; if (x < mn) mn = x; }
+      waveCols.push({ t: t0 + s / sr, top: mx, bot: -mn });
+      waveRef = Math.max(waveRef, mx, -mn);
+    }
+    const dur = samples.length / sr;
+    waveRef = Math.max(0.02, waveRef * Math.exp(-dur / 4));
+    while (waveCols.length && waveCols[0].t < t0 + dur - WAVE_WIN - 0.1) waveCols.shift();
+  }
+  let waveClock = 0;
+  E.on('samples', ({ data, sampleRate }) => {
+    const dur = data.length / sampleRate, t = nowS();
+    // keep blocks back-to-back so the scrolling wave never has holes
+    const start = waveClock && Math.abs(t - (waveClock + dur)) < 0.15 ? waveClock : t - dur;
+    pushWave(data, start, sampleRate);
+    waveClock = start + dur;
+  });
+
+  /** Spectrum + spectrogram: feed one analyser frame into the histories. */
+  function ingest(t, binsDb, dt) {
+    // spectrum: bars with a peak-hold that slowly falls, and an auto-ranging top
+    const cur = toBars(binsDb);
+    let mx = -200;
+    for (let i = 0; i < NB; i++) { holdDb[i] = Math.max(cur[i], holdDb[i] - 40 * dt); if (cur[i] > mx) mx = cur[i]; }
+    // noise floor = typical (median) level, falling fast and rising slowly
+    const med = Array.from(cur).sort((a, b) => a - b)[NB >> 1];
+    noiseDb = noiseDb == null ? med : med < noiseDb ? med : noiseDb + (med - noiseDb) * Math.min(1, dt * 0.15);
+    topDb = Math.max(mx, topDb - 5 * dt, noiseDb + 35);
+    const v = new Float32Array(NB);
+    for (let i = 0; i < NB; i++) v[i] = normDb(cur[i]);
+    if (++warm > 4) specCols.push({ t, v }); // skip the first frames while the scale settles
+    while (specCols.length && specCols[0].t < t - SG_WIN - 0.2) specCols.shift();
+  }
+
+  // ------------------------------------------------------------ drawing: waveform (mockup "line" mode)
+  function drawWave() {
+    const c = $('#cv-wave'); const g = ctxFor(c), W = c.width, H = c.height, mid = H / 2, amp = H * 0.44;
+    g.strokeStyle = col.edge; g.lineWidth = 1.5 * DPR;
+    g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+    if (!waveCols.length) return;
+    const colW = (W * WAVE_COL) / WAVE_WIN, t0 = viewT - WAVE_WIN;
+    g.strokeStyle = col.cyan; g.lineWidth = Math.max(1, colW * 0.7);
+    g.shadowColor = col.cyan; g.shadowBlur = 10 * DPR;
+    g.beginPath();
+    for (const w of waveCols) {
+      if (w.t < t0) continue;
+      const x = ((w.t - t0) / WAVE_WIN) * W;
+      const top = Math.max(0.02, w.top / waveRef), bot = Math.max(0.02, w.bot / waveRef);
+      g.moveTo(x, mid - Math.min(1, top) * amp); g.lineTo(x, mid + Math.min(1, bot) * amp);
+    }
+    g.stroke(); g.shadowBlur = 0;
+  }
+
+  // ------------------------------------------------------------ drawing: spectrum (mockup hatch bars + glow curve)
+  /**
+   * @param canvas
+   * @param vals   Float32Array(NB) 0..1 bar heights
+   * @param opts   { pin: Float32Array 0..1 (dashed "Before" curve), peakWrap: element to position the PEAK tag }
+   */
+  function drawBars(canvas, vals, opts = {}) {
+    const g = ctxFor(canvas), W = canvas.width, H = canvas.height, lw = 2 * DPR;
+    const padB = 24 * DPR, padT = 18 * DPR, ch = H - padB - padT;
+    g.strokeStyle = col.grid; g.lineWidth = DPR; g.setLineDash([4 * DPR, 4 * DPR]);
+    for (let k = 1; k < 4; k++) { const gy = Math.round(padT + (ch * k) / 4) + 0.5; g.beginPath(); g.moveTo(0, gy); g.lineTo(W, gy); g.stroke(); }
+    g.strokeStyle = col.dim; g.lineWidth = 1.5 * DPR; g.setLineDash([6 * DPR, 4 * DPR]);
+    ZONES.forEach((f) => { const x = Math.round(fx(f) * W) + 0.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H - padB); g.stroke(); });
+    g.setLineDash([]);
+
+    const slot = W / NB, gap = slot * 0.24, bw = slot - gap;
+    if (vals) {
+      for (let i = 0; i < NB; i++) {
+        const z = zoneOf(xf((i + 0.5) / NB)), h = Math.max(3 * DPR, vals[i] * ch);
+        const x = i * slot + gap / 2, y = padT + ch - h;
+        g.shadowColor = g.fillStyle = col.zones[z]; g.shadowBlur = 12 * DPR;
+        g.fillRect(x, y, bw, h); g.shadowBlur = 0;
+        g.fillStyle = hatch(g, 'rgba(0,0,0,.45)'); g.fillRect(x, y, bw, h);
+        g.strokeStyle = col.ink; g.lineWidth = lw; g.strokeRect(x, y, bw, h);
       }
-      ctx.restore();
     }
-    const line = (arr, color, dash, width) => {
-      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.lineJoin = 'round';
-      ctx.shadowColor = color; ctx.shadowBlur = col.glow * 0.7;
-      ctx.beginPath();
-      for (let i = 0; i < hz.length; i++) { const x = xOfHz(hz[i], w), yy = y(arr[i]); i ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
-      ctx.stroke(); ctx.restore();
+    const curve = (arr, color, dash) => {
+      const lift = 7 * DPR;
+      const pts = Array.from(arr, (v, n) => [(n + 0.5) * slot, padT + ch - v * ch - lift]);
+      g.lineJoin = g.lineCap = 'round';
+      g.shadowColor = color; g.shadowBlur = dash ? 0 : 14 * DPR;
+      g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+      for (let n = 0; n < pts.length - 1; n++) {
+        const p0 = pts[n - 1] || pts[n], p1 = pts[n], p2 = pts[n + 1], p3 = pts[n + 2] || p2;
+        g.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6, p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]);
+      }
+      g.strokeStyle = color; g.lineWidth = 3 * DPR; g.setLineDash(dash ? [8 * DPR, 6 * DPR] : []);
+      g.stroke(); g.setLineDash([]); g.shadowBlur = 0;
     };
-    if (opts.pinDb) line(opts.pinDb, col.pin, [6, 4], 2);
-    if (curveDb) line(curveDb, col.curve, null, 3);
+    if (opts.pin) curve(opts.pin, col.caption, true);
+    if (vals) curve(vals, col.chalk, false);
+
+    g.fillStyle = col.dim; g.font = font(11); g.textBaseline = 'bottom'; g.textAlign = 'center';
+    [[100, '100'], [250, '250'], [500, '500'], [1000, '1k'], [2000, '2k'], [5000, '5k'], [10000, '10k Hz']].forEach(([f, label]) => {
+      const tw = g.measureText(label).width, x = Math.min(W - tw / 2 - 2 * DPR, Math.max(tw / 2 + 2 * DPR, fx(f) * W));
+      g.fillText(label, x, H - 4 * DPR);
+    });
+  }
+  function drawSpectrum() {
+    const has = holdDb[0] > -150;
+    const vals = has ? Float32Array.from(holdDb, normDb) : null;
+    drawBars($('#cv-spectrum'), vals);
   }
 
-  function autoRange(arr) {
-    let mx = -Infinity;
-    for (const v of arr) if (isFinite(v) && v > mx) mx = v;
-    if (!isFinite(mx)) mx = -20;
-    return { top: mx + 4, bottom: mx - 60 };
-  }
-
-  function drawWave(c, data, color, opts = {}) {
-    const { ctx, w, h } = c;
-    if (!opts.keep) { ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h); }
-    ctx.strokeStyle = col.grid; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, h / 2 + 0.5); ctx.lineTo(w, h / 2 + 0.5); ctx.stroke();
-    if (!data) return;
-    let gain = opts.gain || 1;
-    if (opts.autoGain) { let m = 0; for (const v of data) m = Math.max(m, Math.abs(v)); gain = m > 1e-4 ? 0.9 / m : 1; }
-    ctx.save();
-    ctx.strokeStyle = ctx.shadowColor = color || col.wave; ctx.shadowBlur = opts.alpha ? 0 : col.glow * 0.6;
-    ctx.lineWidth = opts.width || 2; ctx.globalAlpha = opts.alpha || 1;
-    ctx.beginPath();
-    const n = data.length, step = Math.max(1, Math.floor(n / (w * 2)));
-    for (let i = 0, j = 0; i < n; i += step, j++) {
-      const x = (i / (n - 1)) * w, yy = h / 2 - data[i] * gain * (h / 2 - 4);
-      j ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy);
-    }
-    ctx.stroke(); ctx.restore();
-  }
-
-  // ------------------------------------------------------------ spectrogram
-  let specLUT = null;
-  function hexToRgb(s) {
-    const d = document.createElement('div'); d.style.color = s; document.body.appendChild(d);
-    const m = getComputedStyle(d).color.match(/\d+(\.\d+)?/g) || [0, 0, 0]; d.remove();
-    return m.slice(0, 3).map(Number);
-  }
-  function buildSpecLUT() {
-    const stops = col.spec.map(hexToRgb);
-    specLUT = new Uint8ClampedArray(256 * 3);
-    for (let i = 0; i < 256; i++) {
-      const t = (i / 255) * (stops.length - 1), k = Math.min(stops.length - 2, Math.floor(t)), f = t - k;
-      for (let ch = 0; ch < 3; ch++) specLUT[i * 3 + ch] = stops[k][ch] * (1 - f) + stops[k + 1][ch] * f;
-    }
-  }
-  function clearSpectrogram() { const c = canvas('cv-spectrogram'); c.ctx.fillStyle = col.bg; c.ctx.fillRect(0, 0, c.w, c.h); }
-  function pushSpectrogram(binsHz, binsDb) {
-    const c = canvas('cv-spectrogram');
-    const { ctx, cv } = c;
-    const colW = 2 * c.dpr, H = cv.height;
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(cv, colW, 0, cv.width - colW, H, 0, 0, cv.width - colW, H);
-    const img = ctx.createImageData(colW, H);
-    const n = binsDb.length;
-    for (let yy = 0; yy < H; yy++) {
-      const b = Math.min(n - 1, Math.floor((1 - yy / H) * n));
-      const t = Math.max(0, Math.min(255, Math.round(((binsDb[b] + 100) / 75) * 255)));
-      for (let xx = 0; xx < colW; xx++) {
-        const o = (yy * colW + xx) * 4;
-        img.data[o] = specLUT[t * 3]; img.data[o + 1] = specLUT[t * 3 + 1]; img.data[o + 2] = specLUT[t * 3 + 2]; img.data[o + 3] = 255;
+  // ------------------------------------------------------------ drawing: spectrogram (mockup "cells" mode)
+  function drawSpectro() {
+    const c = $('#cv-spectrogram'); const g = ctxFor(c), W = c.width, H = c.height;
+    const ramp = col.ramp, L = ramp.length, rows = NB;
+    const cols = Math.max(20, Math.round(((rows * W) / H) * 0.6));
+    const dt = SG_WIN / cols, cw = W / cols, rh = H / rows, t0 = viewT - SG_WIN;
+    g.fillStyle = ramp[0]; g.fillRect(0, 0, W, H);
+    const cell = new Float32Array(rows);
+    let k = 0, lastT = -Infinity;
+    for (let j = 0; j < cols; j++) {
+      const a = t0 + j * dt, b = a + dt;
+      let any = false;
+      while (k < specCols.length && specCols[k].t < a) k++;
+      for (let m = k; m < specCols.length && specCols[m].t < b; m++) {
+        if (!any) cell.fill(0);
+        any = true; lastT = specCols[m].t;
+        const v = specCols[m].v; for (let r = 0; r < rows; r++) if (v[r] > cell[r]) cell[r] = v[r];
+      }
+      // no frame landed in this column (the browser skipped one): repeat the last column if it's recent
+      if (!any && !(a - lastT < 0.06 && lastT > -Infinity)) continue;
+      const x = j * cw;
+      for (let r = 0; r < rows; r++) {
+        const lv = Math.min(L - 1, Math.floor(Math.pow(cell[r], 0.7) * L));
+        if (lv > 0) { g.fillStyle = ramp[lv]; g.fillRect(Math.floor(x), Math.floor(H - (r + 1) * rh), Math.ceil(cw) + 1, Math.ceil(rh) + 1); }
       }
     }
-    ctx.putImageData(img, cv.width - colW, 0);
-    ctx.restore();
+    g.strokeStyle = 'rgba(236,233,245,.3)'; g.lineWidth = 1.5 * DPR; g.setLineDash([6 * DPR, 5 * DPR]);
+    ZONES.forEach((f) => { const y = Math.round(H - fx(f) * H) + 0.5; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); });
+    g.setLineDash([]);
   }
-  let markHit = false;
 
-  // ------------------------------------------------------------ state + status
-  const status = (msg, isError) => { const s = $('#status'); s.textContent = msg || ''; s.classList.toggle('error', !!isError); };
-  let liveHits = 0;
-  let currentSummary = null;   // what the report shows
-  let pinned = null;           // { label, curveDb, thockScore, profileName }
-  try { pinned = JSON.parse(localStorage.getItem('thockscope.before') || 'null'); } catch (_) { pinned = null; }
-
-  function setButtons(state) {
-    const mic = $('#btn-mic');
-    mic.textContent = state === 'mic' ? 'Listening…' : 'Start Mic';
-    mic.classList.toggle('is-on', state === 'mic');
-    $('#btn-stop').disabled = state === 'idle';
-    const play = $('#btn-play');
-    play.hidden = !E.file;
-    play.textContent = state === 'file-playing' ? 'Pause' : 'Play recording';
-  }
+  function drawLive() { drawWave(); drawSpectrum(); drawSpectro(); }
 
   // ------------------------------------------------------------ profile card
-  /** Floating "PEAK 248 Hz" tag over the spectrum (hidden when there's no peak). */
+  function setStatus(msg, isError) {
+    const s = $('#status-text'); s.textContent = msg || '';
+    $('.status').classList.toggle('error', !!isError);
+  }
   function showPeak(hz) {
-    const tag = $('#peak-tag'); if (!tag) return;
+    const tag = $('#peak-tag');
     if (!hz) { tag.hidden = true; return; }
-    // keep the tag fully inside the chart near the edges
-    const pct = Math.max(8, Math.min(92, ((Math.log(hz) - LMIN) / (LMAX - LMIN)) * 100));
-    tag.style.setProperty('--peak-x', pct + '%');
+    $('#spectrum-wrap').style.setProperty('--peak-x', clamp(fx(hz) * 100, 7, 93).toFixed(1) + '%');
     $('#peak-hz').textContent = Math.round(hz) + ' Hz';
     tag.hidden = false;
   }
-  function profileText(id) { return C.profiles[id] || { name: '—', text: '' }; }
-  function showProfile(f, live) {
-    const p = profileText(f.profile);
-    $('#prof-name').textContent = p.name;
-    $('#prof-desc').textContent = p.soundsLike ? `Sounds like ${p.soundsLike}.` : '';
-    $('.panel-profile').dataset.profile = f.profile;   // lets the theme swap the burst for clacky sounds
+  function showProfile(f) {
+    const p = C.profiles[f.profile] || {};
+    $('#prof-word').textContent = p.word || p.name || '?';
+    $('#prof-says').textContent = p.says || '';
+    const clackiness = clamp(100 - f.thockScore, 3, 97); // keep the needle visible at the ends
+    const meter = $('#meter');
+    meter.style.setProperty('--pos', clackiness + '%');
+    meter.setAttribute('aria-valuenow', String(clackiness));
+    $('#st-pitch').textContent = Math.round(f.peakHz);
+    $('#st-bright').textContent = C.brightnessWord(f.centroid);
+    $('#st-centroid').textContent = Math.round(f.centroid / 10) * 10 >= 1000 ? (Math.round(f.centroid / 10) * 10).toLocaleString('en-US') : Math.round(f.centroid);
+    root.setAttribute('data-profile', f.profile === 'clack' || f.profile === 'sharp-clack' ? 'clacky' : 'thocky');
     showPeak(f.peakHz);
-    const needle = $('#meter-needle');
-    needle.style.left = f.thockScore + '%';
-    needle.classList.toggle('is-live', !!live);
-    $('#st-pitch').textContent = Math.round(f.peakHz) + ' Hz';
-    $('#st-bright').textContent = Math.round(f.centroid) + ' Hz';
-    if (f.decayMs != null) $('#st-decay').textContent = f.decayMs + ' ms';
+  }
+  function clearProfile() {
+    $('#prof-word').textContent = '?';
+    $('#prof-says').textContent = C.ui.idle;
+    $('#meter').style.setProperty('--pos', '50%');
+    $('#st-pitch').textContent = '—'; $('#st-bright').textContent = '—'; $('#st-centroid').textContent = '—';
+    root.removeAttribute('data-profile');
+    showPeak(0);
   }
 
-  function onKeystroke(hit) {
-    liveHits++;
-    $('#st-count').textContent = liveHits;
-    showProfile(hit, true);
-    const card = $('.panel-profile'); card.classList.remove('hit-flash'); void card.offsetWidth; card.classList.add('hit-flash');
-    const c = canvas('cv-hit');
-    drawWave(c, hit.snippet, col.hit, { autoGain: true });
-    markHit = true;
-    // While a file plays, keep showing the file's full offline report.
-    if (E.state === 'mic' && (liveHits % 3 === 0 || liveHits < 10)) renderReport(E.getSessionSummary(), 'live');
-  }
+  // ------------------------------------------------------------ report card
+  let currentSummary = null;
+  let pinned = null;
+  try { pinned = JSON.parse(localStorage.getItem('thockscope.before') || 'null'); } catch (_) { pinned = null; }
+  if (pinned && (!pinned.bars || pinned.bars.length !== NB)) pinned = null; // older saved format
 
-  // ------------------------------------------------------------ report
+  function summaryBars(sum) {
+    const db = toBars(sum.binsDb);
+    let mx = -200; for (const v of db) mx = Math.max(mx, v);
+    return Float32Array.from(db, (v) => clamp((v - (mx - 57)) / 60, 0, 1));
+  }
   function renderReport(sum, source) {
     currentSummary = sum;
     const head = $('#rep-headline'), bands = $('#rep-bands'), list = $('#rep-diagnosis'), cmp = $('#rep-compare');
     list.innerHTML = ''; bands.innerHTML = '';
     if (!sum || !sum.count) {
-      head.textContent = source === 'file' ? 'No key presses found in this recording. Try raising Sensitivity and loading it again.' : 'Type some keys to get your report.';
+      head.textContent = source === 'file' ? 'No key presses found in this recording. Raise Sensitivity and load it again.' : 'Type some keys to get your report.';
       cmp.hidden = true;
-      drawReportCurve(null);
+      drawBars($('#cv-report'), null, { pin: pinned && Float32Array.from(pinned.bars) });
       return;
     }
-    head.textContent = `${sum.profileName} · score ${sum.thockScore}/100 · ${sum.count} keys · main pitch ${sum.peakHz} Hz`;
-
+    head.textContent = `${sum.profileName} · ${sum.thockScore}/100 thock · ${sum.count} keys · pitch ${sum.peakHz} Hz`;
     const pct = (v) => Math.round(v * 100);
-    [['low', 'band-low', 'Low'], ['mid', 'band-mid', 'Mid'], ['high', 'band-high', 'High']].forEach(([k, cls, name]) => {
+    [['low', 'band-low', 'LOW'], ['mid', 'band-mid', 'MID'], ['high', 'band-high', 'HIGH']].forEach(([k, cls, name]) => {
       const s = el('span', cls, pct(sum.bands[k]) >= 14 ? `${name} ${pct(sum.bands[k])}%` : '');
-      s.style.width = Math.max(4, pct(sum.bands[k])) + '%';
+      s.style.width = Math.max(3, pct(sum.bands[k])) + '%';
       s.title = `${name}: ${pct(sum.bands[k])}% of the sound energy`;
       bands.appendChild(s);
     });
-
     if (pinned) {
       const d = sum.thockScore - pinned.thockScore;
       cmp.hidden = false;
       cmp.textContent = d === 0 ? `Same score as "Before" (${pinned.thockScore}).`
         : `${Math.abs(d)} points ${d > 0 ? 'deeper (more thock)' : 'brighter (more clack)'} than "Before" (${pinned.thockScore}, ${pinned.profileName}).`;
     } else cmp.hidden = true;
-
     for (const id of sum.diagnosis) {
       const d = C.diagnosis[id]; if (!d) continue;
       const li = el('li', d.kind);
@@ -1850,21 +1910,14 @@ input[type="range"] { accent-color: var(--noir-cyan); }
       }
       list.appendChild(li);
     }
-    drawReportCurve(sum);
+    drawBars($('#cv-report'), summaryBars(sum), { pin: pinned && Float32Array.from(pinned.bars) });
   }
-
-  function drawReportCurve(sum) {
-    const c = canvas('cv-report');
-    if (!sum || !sum.count) { drawSpectrum(c, E.summarize([]).binsHz, null, null, { pinDb: pinned && pinned.curveDb }); return; }
-    drawSpectrum(c, sum.binsHz, sum.binsDb, sum.curveDb, { ...autoRange(sum.curveDb), pinDb: pinned && pinned.curveDb });
-  }
-
   function pinCurrent() {
-    if (!currentSummary || !currentSummary.count) { status('Record or load some typing first, then save it as "Before".'); return; }
-    pinned = { curveDb: Array.from(currentSummary.curveDb), thockScore: currentSummary.thockScore, profileName: currentSummary.profileName };
+    if (!currentSummary || !currentSummary.count) { setStatus('Record or load some typing first, then save it as "Before".'); return; }
+    pinned = { bars: Array.from(summaryBars(currentSummary)), thockScore: currentSummary.thockScore, profileName: currentSummary.profileName };
     try { localStorage.setItem('thockscope.before', JSON.stringify(pinned)); } catch (_) {}
     $('#btn-unpin').hidden = false;
-    status('Saved as "Before" (dashed line). Now make a change and record again to compare.');
+    setStatus('Saved as "Before" (yellow dashed line). Make one change, then record again to compare.');
     renderReport(currentSummary);
   }
   function unpin() {
@@ -1874,92 +1927,104 @@ input[type="range"] { accent-color: var(--noir-cyan); }
     renderReport(currentSummary);
   }
 
-  // ------------------------------------------------------------ file overview
+  // ------------------------------------------------------------ recording overview
   function drawOverview() {
     if (!E.file) return;
-    const c = canvas('cv-overview'); fit(c);
-    const { ctx, w, h } = c, rep = E.file.report, ov = rep.overview, n = ov.length / 2;
-    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
+    const c = $('#cv-overview'); const g = ctxFor(c), W = c.width, H = c.height;
+    const rep = E.file.report, ov = rep.overview, n = ov.length / 2;
     let mx = 1e-4; for (const v of ov) mx = Math.max(mx, Math.abs(v));
-    ctx.fillStyle = col.wave;
+    g.fillStyle = col.cyan; g.shadowColor = col.cyan; g.shadowBlur = 6 * DPR;
     for (let i = 0; i < n; i++) {
-      const x = (i / n) * w, y0 = h / 2 - (ov[i * 2 + 1] / mx) * (h / 2 - 4), y1 = h / 2 - (ov[i * 2] / mx) * (h / 2 - 4);
-      ctx.fillRect(x, y0, Math.max(1, w / n), Math.max(1, y1 - y0));
+      const x = (i / n) * W, y0 = H / 2 - (ov[i * 2 + 1] / mx) * (H / 2 - 4 * DPR), y1 = H / 2 - (ov[i * 2] / mx) * (H / 2 - 4 * DPR);
+      g.fillRect(x, y0, Math.max(DPR, W / n), Math.max(DPR, y1 - y0));
     }
-    ctx.fillStyle = col.hit;
-    for (const hit of rep.hits) ctx.fillRect((hit.time / rep.duration) * w - 1, 0, 2, 8);
+    g.shadowBlur = 0; g.fillStyle = col.pink;
+    for (const hit of rep.hits) g.fillRect((hit.time / rep.duration) * W - DPR, 0, 2 * DPR, 10 * DPR);
     const ph = E.state.startsWith('file') ? E._playhead() : E.file.offset;
-    if (ph > 0) { ctx.fillStyle = col.curve; ctx.fillRect((ph / rep.duration) * w - 1, 0, 2, h); }
+    if (ph > 0) { g.fillStyle = col.caption; g.fillRect((ph / rep.duration) * W - DPR, 0, 2 * DPR, H); }
   }
 
-  // ------------------------------------------------------------ live loop
+  // ------------------------------------------------------------ engine events
+  let liveHits = 0;
   E.on('frame', (fr) => {
-    drawWave(canvas('cv-wave'), fr.waveform, col.wave, { gain: 3 });
-    drawSpectrum(canvas('cv-spectrum'), fr.binsHz, fr.binsDb, fr.curveDb, { pinDb: null });
-    pushSpectrogram(fr.binsHz, fr.binsDb);
-    if (markHit) {
-      markHit = false;
-      const c = canvas('cv-spectrogram'); c.ctx.fillStyle = col.hit; c.ctx.fillRect(c.w - 2, 0, 2, 4);
-    }
+    const t = nowS();
+    const dt = lastFrameT ? Math.min(0.1, t - lastFrameT) : 1 / 60;
+    lastFrameT = t; viewT = t;
+    ingest(t, fr.binsDb, dt);
+    drawLive();
     if (fr.playhead != null) drawOverview();
   });
-  E.on('keystroke', onKeystroke);
-  E.on('state', (s) => {
-    setButtons(s);
-    if (s === 'mic') status('Listening… type on your keyboard! (Headphones on so the app doesn\'t hear itself.)');
-    else if (s === 'file-playing') status('Playing your recording…');
-    else if (s === 'idle' && !E.file) status('Stopped.');
+  E.on('keystroke', (hit) => {
+    liveHits++;
+    showProfile(hit);
+    if (E.state === 'mic') {
+      setStatus(`Listening… ${liveHits} key${liveHits === 1 ? '' : 's'} heard.`);
+      if (liveHits % 3 === 0 || liveHits < 10) renderReport(E.getSessionSummary(), 'live');
+    }
   });
-  E.on('ended', () => { status('Finished playing.'); drawOverview(); });
+  E.on('state', (s) => {
+    const live = s === 'mic' || s === 'file-playing';
+    root.setAttribute('data-live', live ? 'on' : 'off');
+    $('#mic-text').textContent = s === 'mic' ? 'Stop Mic' : 'Start Mic';
+    const play = $('#btn-play');
+    play.hidden = !E.file;
+    $('#play-text').textContent = s === 'file-playing' ? 'Pause' : 'Play';
+    $('#play-icon').setAttribute('d', s === 'file-playing' ? 'M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z' : 'M7 4.5v15l12-7.5z');
+    if (s === 'mic') setStatus('Listening… type on your keyboard! (Headphones on, so the app doesn\'t hear itself.)');
+    else if (s === 'file-playing') setStatus('Playing your recording…');
+    else if (s === 'idle' && !E.file && liveHits) setStatus(`Stopped. ${liveHits} key${liveHits === 1 ? '' : 's'} heard.`);
+  });
+  E.on('ended', () => { setStatus('Finished playing.'); drawOverview(); });
   E.on('file', (rep) => {
     $('#file-panel').hidden = false;
     $('#file-name').textContent = rep.name;
     renderReport(rep.summary, 'file');
-    if (rep.summary.count) showProfile({ ...rep.summary, centroid: rep.summary.centroid }, false);
-    $('#st-count').textContent = rep.summary.count;
-    setButtons(E.state);
-    requestAnimationFrame(drawOverview);
+    if (rep.summary.count) {
+      const last = rep.hits[rep.hits.length - 1];
+      showProfile({ ...rep.summary, centroid: rep.summary.centroid, peakHz: rep.summary.peakHz, profile: rep.summary.profile, thockScore: rep.summary.thockScore });
+      holdDb.set(toBars(rep.summary.binsDb)); topDb = Math.max(...holdDb);
+      void last;
+    }
+    $('#btn-play').hidden = false;
+    requestAnimationFrame(() => { drawOverview(); drawSpectrum(); });
   });
 
   // ------------------------------------------------------------ controls
   $('#btn-mic').addEventListener('click', async () => {
     if (E.state === 'mic') { E.stop(); return; }
     try {
-      status('Asking for the microphone…');
+      setStatus('Asking for the microphone…');
       await E.startMic();
-      liveHits = 0; E.resetSession(); $('#st-count').textContent = '0';
-      clearSpectrogram();
+      liveHits = 0; E.resetSession(); resetDisplay(); clearProfile();
     } catch (err) {
       const msg = err && err.name === 'NotAllowedError' ? 'Microphone permission was blocked. Allow it in your browser\'s address bar and try again.'
         : err && err.name === 'NotFoundError' ? 'No microphone found. Plug one in, or upload a recording instead.'
         : (err && err.message) || 'Could not start the microphone.';
-      status(msg, true);
+      setStatus(msg, true);
     }
   });
   $('#file-input').addEventListener('change', async (e) => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     try {
-      status(`Analysing ${f.name}…`);
+      setStatus(`Analysing ${f.name}…`);
+      resetDisplay();
       const rep = await E.loadFile(f);
-      status(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Try raising Sensitivity, then load the file again.');
+      setStatus(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Raise Sensitivity, then load the file again.');
     } catch (err) {
-      status('Could not read that file. Try a .wav, .mp3, .m4a or .ogg recording.', true);
+      setStatus('Could not read that file. Try a .wav, .mp3, .m4a or .ogg recording.', true);
       console.error(err);
     }
     e.target.value = '';
   });
   $('#btn-play').addEventListener('click', () => {
     if (E.state === 'file-playing') E.pauseFile();
-    else { clearSpectrogram(); E.playFile(); }
+    else { if (E.state === 'mic') E.stop(); resetDisplay(); E.playFile(); }
   });
-  $('#btn-stop').addEventListener('click', () => { E.stop(); if (E.file) E.file.offset = 0; drawOverview(); });
   $('#sens').addEventListener('input', (e) => E.setSensitivity(parseFloat(e.target.value)));
   $('#btn-reset').addEventListener('click', () => {
-    E.resetSession(); liveHits = 0; $('#st-count').textContent = '0';
-    renderReport(null); clearSpectrogram();
-    $('#prof-name').textContent = '—'; $('#prof-desc').textContent = C.ui.micHint;
-    $('#meter-needle').classList.remove('is-live');
-    showPeak(0); delete $('.panel-profile').dataset.profile;
+    E.resetSession(); liveHits = 0;
+    renderReport(null); resetDisplay(); clearProfile(); drawLive();
+    setStatus(C.ui.idle);
   });
   $('#btn-pin').addEventListener('click', pinCurrent);
   $('#btn-unpin').addEventListener('click', unpin);
@@ -1967,80 +2032,124 @@ input[type="range"] { accent-color: var(--noir-cyan); }
   $('#cv-overview').addEventListener('click', (e) => {
     if (!E.file) return;
     const r = e.currentTarget.getBoundingClientRect();
-    const t = ((e.clientX - r.left) / r.width) * E.file.report.duration;
-    clearSpectrogram(); E.playFile(t);
+    if (E.state === 'mic') E.stop();
+    resetDisplay();
+    E.playFile(((e.clientX - r.left) / r.width) * E.file.report.duration);
   });
 
-  // ------------------------------------------------------------ Fourier demo
+  // ------------------------------------------------------------ sample key presses (so the page isn't empty)
+  /** Synthesizes ~4 s of thocky typing and runs it through the real analysis. */
+  function showSample() {
+    const sr = 48000, dur = 4, len = sr * dur, d = new Float32Array(len);
+    let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (let i = 0; i < len; i++) d[i] = rnd() * 0.0006;
+    const press = (t0, a, low, body) => {
+      const s0 = Math.floor(t0 * sr);
+      for (let i = 0; i < sr * 0.16 && s0 + i < len; i++) {
+        const t = i / sr;
+        d[s0 + i] += a * (Math.exp(-t / 0.014) * (Math.sin(2 * Math.PI * low * t) + 0.55 * Math.sin(2 * Math.PI * body * t) + 0.2 * Math.sin(2 * Math.PI * 3800 * t))
+          + 0.25 * rnd() * Math.exp(-t / 0.0015));
+      }
+    };
+    let t = 0.3;
+    while (t < dur - 0.25) {
+      const low = 230 + rnd() * 25;
+      press(t, 0.35 + rnd() * 0.06, low, low * 4.6);           // key going down
+      press(t + 0.1, 0.12, low * 1.3, low * 5.5);                 // smaller one coming back up
+      t += 0.45 + Math.abs(rnd()) * 0.3;
+    }
+    const buf = { sampleRate: sr, length: len, numberOfChannels: 1, duration: dur, getChannelData: () => d };
+    const rep = E.analyzeBuffer(buf);
+
+    // Replay it through the same drawing pipeline, ending "now".
+    const axis = F.logAxis(40, 16000, E.DISPLAY_BINS), N = 4096, step = Math.round(sr / 60), end = nowS();
+    const frames = [];
+    for (let s = N; s <= len; s += step) frames.push([s, F.toLogBins(F.magnitudes(d.subarray(s - N, s), F.hann(N)), sr / N, axis)]);
+    // settle the auto-range on the whole sample first, so the oldest columns are scaled right
+    for (const [, b] of frames) { const bars = toBars(b); topDb = Math.max(topDb, ...bars); noiseDb = Math.min(noiseDb == null ? 0 : noiseDb, Array.from(bars).sort((x, y) => x - y)[NB >> 1]); }
+    for (const [s, b] of frames) ingest(end - (len - s) / sr, b, 1 / 60);
+    pushWave(d.subarray(len - Math.ceil(sr * (WAVE_WIN + 0.1))), end - (WAVE_WIN + 0.1), sr);
+    viewT = end;
+    if (rep.hits.length) {
+      const hit = rep.hits[rep.hits.length - 1];
+      showProfile(hit);
+      holdDb.set(toBars(hit.binsDb)); topDb = Math.max(...holdDb);
+    }
+    setStatus(C.ui.sample);
+  }
+
+  // ------------------------------------------------------------ Fourier smoothie demo
   const fruits = [
-    { name: 'Strawberry', role: 'low thump', hz: 150, amp: 1 },
-    { name: 'Banana', role: 'middle body', hz: 500, amp: 0.6 },
-    { name: 'Blueberry', role: 'high click', hz: 1400, amp: 0.35 },
+    { name: 'Banana', role: 'low thump', hz: 150, amp: 1 },
+    { name: 'Strawberry', role: 'middle body', hz: 500, amp: 0.55 },
+    { name: 'Blueberry', role: 'high click', hz: 1400, amp: 0.3 },
   ];
   function renderDemoControls() {
     const box = $('#demo-controls');
     fruits.forEach((f, i) => {
       const lab = el('label', 'fruit');
-      const dot = el('span', 'fruit-dot'); dot.style.background = col.fruits[i];
+      const dot = el('span', 'fruit-dot'); dot.style.background = col.fruits[i]; dot.style.boxShadow = `0 0 8px ${col.fruits[i]}`;
       const range = el('input'); range.type = 'range'; range.min = 0; range.max = 1; range.step = 0.05; range.value = f.amp;
       range.setAttribute('aria-label', `${f.name} amount`);
       range.addEventListener('input', () => { f.amp = parseFloat(range.value); drawDemo(); });
-      lab.append(dot, el('span', null, `${f.name} — ${f.hz} Hz (${f.role})`), range);
+      lab.append(dot, el('span', null, `${f.name} · ${f.hz} Hz (${f.role})`), range);
       box.appendChild(lab);
     });
   }
   function drawDemo() {
     const mix = E.demoMix(fruits.map((f) => ({ hz: f.hz, amp: f.amp })), { waveMs: 20 });
-    const cw = canvas('cv-demo-wave'); fit(cw);
-    drawWave(cw, null);
-    fruits.forEach((f, i) => {
-      if (!f.amp) return;
-      const one = E.demoMix([{ hz: f.hz, amp: f.amp }], { waveMs: 20 }).wave;
-      drawWave(cw, one, col.fruits[i], { keep: true, gain: 0.33, width: 1.5, alpha: 0.6 });
-    });
-    drawWave(cw, mix.wave, col.wave, { keep: true, gain: 0.33, width: 2.5 });
+    const cw = $('#cv-demo-wave'); const g = ctxFor(cw), W = cw.width, H = cw.height, mid = H / 2, amp = H * 0.42 / 1.9;
+    g.strokeStyle = col.edge; g.lineWidth = 1.5 * DPR; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+    const line = (wave, color, width, alpha, glow) => {
+      g.save(); g.globalAlpha = alpha; g.strokeStyle = g.shadowColor = color; g.shadowBlur = glow ? 10 * DPR : 0; g.lineWidth = width * DPR; g.lineJoin = 'round';
+      g.beginPath();
+      for (let i = 0; i < wave.length; i++) { const x = (i / (wave.length - 1)) * W, y = mid - wave[i] * amp; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke(); g.restore();
+    };
+    fruits.forEach((f, i) => { if (f.amp) line(E.demoMix([{ hz: f.hz, amp: f.amp }], { waveMs: 20 }).wave, col.fruits[i], 1.5, 0.75, false); });
+    line(mix.wave, col.chalk, 3, 1, true);
 
-    const cs = canvas('cv-demo-spec'); fit(cs);
-    const { ctx, w, h } = cs, maxHz = 2000;
-    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
-    ctx.font = `600 10px ${col.font}`; ctx.textAlign = 'center';
-    ctx.strokeStyle = col.grid; ctx.fillStyle = col.text;
-    for (let t = 0; t <= maxHz; t += 250) { const x = (t / maxHz) * w; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 14); ctx.stroke(); if (t % 500 === 0) { ctx.textAlign = t === 0 ? 'left' : t === maxHz ? 'right' : 'center'; ctx.fillText(t + (t ? '' : ' Hz'), x, h - 3); } }
-    const spec = mix.spectrum, n = Math.floor(maxHz / mix.binHz);
+    const cs = $('#cv-demo-spec'); const q = ctxFor(cs), SW = cs.width, SH = cs.height, maxHz = 2000, padB = 18 * DPR;
+    q.font = font(11); q.textBaseline = 'bottom';
+    q.strokeStyle = col.grid; q.lineWidth = DPR; q.setLineDash([4 * DPR, 4 * DPR]);
+    for (let f = 250; f < maxHz; f += 250) { const x = Math.round((f / maxHz) * SW) + 0.5; q.beginPath(); q.moveTo(x, 0); q.lineTo(x, SH - padB); q.stroke(); }
+    q.setLineDash([]);
+    q.fillStyle = col.dim;
+    [0, 500, 1000, 1500, 2000].forEach((f) => { q.textAlign = f === 0 ? 'left' : f === maxHz ? 'right' : 'center'; q.fillText(f ? f + (f === maxHz ? ' Hz' : '') : '0', (f / maxHz) * SW + (f === 0 ? 3 * DPR : f === maxHz ? -3 * DPR : 0), SH - 3 * DPR); });
+    const spec = mix.spectrum, n = Math.floor(maxHz / mix.binHz), bw = Math.max(3 * DPR, SW / n * 0.9);
     for (let k = 1; k < n; k++) {
       const hz = k * mix.binHz;
+      const bh = Math.min(1, spec[k]) * (SH - padB - 8 * DPR);
+      if (bh < 1) continue;
       let ci = -1; fruits.forEach((f, i) => { if (Math.abs(f.hz - hz) < 40) ci = i; });
-      ctx.fillStyle = ci >= 0 ? col.fruits[ci] : col.bar;
-      const bh = Math.min(1, spec[k]) * (h - 22);
-      ctx.fillRect((hz / maxHz) * w - 1.5, h - 14 - bh, 3, bh);
+      q.fillStyle = q.shadowColor = ci >= 0 ? col.fruits[ci] : col.violet; q.shadowBlur = 10 * DPR;
+      q.fillRect((hz / maxHz) * SW - bw / 2, SH - padB - bh, bw, bh);
     }
+    q.shadowBlur = 0;
   }
 
   // ------------------------------------------------------------ static content
   function renderContent() {
     document.querySelectorAll('[data-text]').forEach((n) => {
-      const key = n.getAttribute('data-text').split('.');
-      let v = C; for (const k of key) v = v && v[k];
+      let v = C; for (const k of n.getAttribute('data-text').split('.')) v = v && v[k];
       if (typeof v === 'string') n.textContent = v;
     });
-    document.querySelectorAll('[data-lesson]').forEach((n) => {
-      const l = C.lessons.find((x) => x.id === n.getAttribute('data-lesson'));
-      if (l) n.textContent = l.short;
-    });
+
+    // zone legend widths follow the real zone boundaries on the chart
+    const z = [0, fx(ZONES[0]), fx(ZONES[1]), 1];
+    $('#zones').style.gridTemplateColumns = [0, 1, 2].map((i) => `${((z[i + 1] - z[i]) * 100).toFixed(1)}fr`).join(' ');
 
     const lessons = $('#lessons');
-    C.lessons.forEach((l, i) => {
+    C.lessons.forEach((l) => {
       const card = el('article', 'card lesson');
-      card.appendChild(el('h3', null, `${i + 1}. ${l.title}`));
+      card.appendChild(el('h3', null, l.title));
       card.appendChild(el('p', 'short', l.short));
       const d = el('details'); d.appendChild(el('summary', null, 'Tell me more')); d.appendChild(el('p', null, l.body));
       card.appendChild(d);
       lessons.appendChild(card);
     });
 
-    const filters = [
-      ['all', 'All'], ['thock', 'Thock'], ['clack', 'Clack'], ['creamy', 'Creamy'], ['quiet', 'Quiet'], ['fix', 'Fix a problem'], ['budget', 'Cheap mods'],
-    ];
+    const filters = [['all', 'All'], ['thock', 'Thock'], ['clack', 'Clack'], ['creamy', 'Creamy'], ['quiet', 'Quiet'], ['fix', 'Fix a problem'], ['budget', 'Cheap mods']];
     const chipBox = $('#recipe-filters');
     filters.forEach(([tag, label], i) => {
       const b = el('button', 'chip' + (i === 0 ? ' is-active' : ''), label); b.type = 'button'; b.dataset.tag = tag;
@@ -2055,20 +2164,19 @@ input[type="range"] { accent-color: var(--noir-cyan); }
     const partName = (id) => (C.parts.find((p) => p.id === id) || { name: id }).name;
     const list = $('#recipe-list');
     C.recipes.forEach((r) => {
-      const card = el('article', 'card recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = r.tags.join(' ');
-      card.appendChild(el('h3', null, r.goal));
-      card.appendChild(el('p', 'recipe-want', `"${r.want}"`));
-      card.appendChild(el('p', 'recipe-meta', `Cost: ${'$'.repeat(r.cost)} · Effort: ${['', 'Easy', 'Medium', 'Big project'][r.effort]}`));
-      const ol = el('ol', 'recipe-steps');
+      const card = el('article', 'recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = r.tags.join(' ');
+      card.appendChild(el('h3', 'recipe-goal', r.want.replace(/^I want (my keyboard )?/, 'I want ').replace(/\.$/, '')));
+      const ul = el('ul', 'recipe-steps');
       r.steps.forEach((s) => {
         const li = el('li');
-        li.appendChild(el('span', 'part-tag', partName(s.part)));
+        li.appendChild(el('b', null, partName(s.part)));
         li.appendChild(document.createTextNode(s.do));
-        li.appendChild(el('span', 'why', 'Why: ' + s.why));
-        ol.appendChild(li);
+        li.appendChild(el('span', 'why', s.why));
+        ul.appendChild(li);
       });
-      card.appendChild(ol);
+      card.appendChild(ul);
       card.appendChild(el('p', 'recipe-graph', 'On the graph: ' + r.graph));
+      card.appendChild(el('p', 'recipe-meta', `Cost ${'$'.repeat(r.cost)} · ${['', 'Easy', 'Medium', 'Big project'][r.effort]}`));
       list.appendChild(card);
     });
 
@@ -2078,47 +2186,45 @@ input[type="range"] { accent-color: var(--noir-cyan); }
       card.appendChild(el('h3', null, p.name));
       card.appendChild(el('p', 'short', p.what));
       card.appendChild(el('p', null, p.sound));
-      card.appendChild(el('p', 'part-tip', 'Tip: ' + p.tip));
+      card.appendChild(el('p', 'dim', 'Tip: ' + p.tip));
       parts.appendChild(card);
     });
 
     const tips = $('#tips'); C.recordingTips.forEach((t) => tips.appendChild(el('li', null, t)));
-    const gl = $('#glossary'); C.glossary.forEach((g) => { gl.appendChild(el('dt', null, g.term)); gl.appendChild(el('dd', null, g.def)); });
+    const gl = $('#glossary'); C.glossary.forEach((x) => { gl.appendChild(el('dt', null, x.term)); gl.appendChild(el('dd', null, x.def)); });
   }
 
   function showRecipe(id) {
-    document.querySelector('#recipe-filters .chip[data-tag="all"]').click();
+    $('#recipe-filters .chip[data-tag="all"]').click();
     const card = document.getElementById('recipe-' + id); if (!card) return;
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     card.classList.add('is-highlight'); setTimeout(() => card.classList.remove('is-highlight'), 2500);
   }
 
-  // ------------------------------------------------------------ idle drawing + resize
-  function drawIdle() {
-    drawWave(canvas('cv-wave'), null);
-    drawSpectrum(canvas('cv-spectrum'), E.summarize([]).binsHz, null, null);
-    clearSpectrogram();
-    drawWave(canvas('cv-hit'), null);
-    drawReportCurve(currentSummary);
-    drawOverview();
-    drawDemo();
+  // ------------------------------------------------------------ redraw on resize / font load
+  function redrawStatic() {
+    if (E.state === 'mic' || E.state === 'file-playing') { renderReport(currentSummary); drawDemo(); return; }
+    drawLive(); drawOverview(); drawDemo(); renderReport(currentSummary);
   }
-  let resizeTimer;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { Object.values(canvases).forEach(fit); if (E.state === 'idle' || E.state === 'file-paused') drawIdle(); else { drawReportCurve(currentSummary); drawDemo(); } }, 120);
-  });
-  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); drawIdle(); });
+  let rt;
+  const onResize = () => { clearTimeout(rt); rt = setTimeout(redrawStatic, 80); };
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(onResize);
+    document.querySelectorAll('.chart canvas').forEach((c) => ro.observe(c));
+  } else window.addEventListener('resize', onResize);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawStatic);
 
+  // ------------------------------------------------------------ start
   readColors();
   renderContent();
   renderDemoControls();
-  setButtons('idle');
-  drawIdle();
-  if (!(window.AudioContext || window.webkitAudioContext)) status('This browser can\'t do live audio. Try Chrome, Edge, Firefox or Safari.', true);
+  renderReport(null);
+  try { showSample(); } catch (e) { console.error(e); clearProfile(); setStatus(C.ui.idle); }
+  drawLive();
+  drawDemo();
+  if (!(window.AudioContext || window.webkitAudioContext)) setStatus('This browser can\'t do live audio. Try Chrome, Edge, Firefox or Safari.', true);
 
-  // Small hook for themes / tests.
-  window.ThockUI = { readColors, redraw: drawIdle, showRecipe, renderReport };
+  window.ThockUI = { readColors, redraw: redrawStatic, showRecipe, renderReport };
 })();
 
 </script>

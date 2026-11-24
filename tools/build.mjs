@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 let html = await readFile(join(root, 'index.html'), 'utf8');
 
-html = await replaceAsync(html, /<link rel="stylesheet" href="([^"]+)">/g, async (_, href) =>
+html = await replaceAsync(html, /<link rel="stylesheet" href="((?!https?:)[^"]+)">/g, async (_, href) =>
   `<style>\n${await readFile(join(root, href), 'utf8')}\n</style>`);
 html = await replaceAsync(html, /<script src="([^"]+)"><\/script>/g, async (_, src) => {
   const js = (await readFile(join(root, src), 'utf8')).replace(/<\/script/gi, '<\\/script');

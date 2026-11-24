@@ -378,7 +378,13 @@
           emit('keystroke', hit);
         });
         this._detector.setSensitivity(this.sensitivity);
-        proc.onaudioprocess = (e) => { if (this.state === 'mic' || this.state === 'file-playing') this._detector.push(e.inputBuffer.getChannelData(0)); };
+        proc.onaudioprocess = (e) => {
+          if (this.state !== 'mic' && this.state !== 'file-playing') return;
+          const block = e.inputBuffer.getChannelData(0);
+          this._detector.push(block);
+          // Every raw block, gap-free (for scrolling waveforms). The array is reused: copy if you keep it.
+          if (listeners.samples && listeners.samples.length) emit('samples', { data: block, sampleRate: this.ctx.sampleRate, time: e.playbackTime });
+        };
       }
       if (this.ctx.state === 'suspended') this.ctx.resume();
       return this.ctx;

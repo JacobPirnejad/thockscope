@@ -1,145 +1,197 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-live="off">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ThockScope</title>
 <meta name="description" content="See what your keyboard sounds like: a live frequency analyzer for custom mechanical keyboards.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;600;700&family=Special+Elite&display=swap">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<header class="app-header">
-  <div class="brand">
-    <h1 class="brand-title">ThockScope</h1>
-    <p class="brand-tagline" data-text="ui.tagline"></p>
-  </div>
-  <div class="controls" role="toolbar" aria-label="Audio controls">
-    <button id="btn-mic" class="btn btn-primary" type="button">Start Mic</button>
-    <label class="btn btn-file">Upload Recording
-      <input id="file-input" type="file" accept="audio/*,video/*" hidden>
-    </label>
-    <button id="btn-play" class="btn" type="button" hidden>Play</button>
-    <button id="btn-stop" class="btn" type="button" disabled>Stop</button>
-    <label class="sens">Sensitivity
-      <input id="sens" type="range" min="0" max="1" step="0.05" value="0.5">
-    </label>
-  </div>
-  <p id="status" class="status" role="status" aria-live="polite"></p>
-</header>
-
-<main class="app-main">
-  <section class="viz-grid" aria-label="Live visualizers">
-    <article class="panel panel-wave">
-      <h2 class="panel-title" data-text="ui.waveform"></h2>
-      <canvas id="cv-wave" class="viz" aria-label="Waveform"></canvas>
-      <p class="panel-note" data-lesson="sound"></p>
-    </article>
-
-    <article class="panel panel-spectrum">
-      <h2 class="panel-title" data-text="ui.spectrum"></h2>
-      <div class="viz-wrap">
-        <canvas id="cv-spectrum" class="viz viz-tall" aria-label="Frequency spectrum"></canvas>
-        <span id="peak-tag" class="peak-tag" hidden>PEAK <b id="peak-hz"></b></span>
+<div class="ts-page">
+  <header class="ts-header panel">
+    <p class="narration" data-text="ui.narration"></p>
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path class="cap-side" d="M6 22 L14 8 H50 L58 22 V50 Q58 56 52 56 H12 Q6 56 6 50 Z"/>
+        <path class="cap-top" d="M15 12 H49 L53 34 Q53 40 47 40 H17 Q11 40 11 34 Z"/>
+        <path class="cap-wave" d="M18 26 Q21 18 24 26 T30 26 T36 26 Q39 20 42 26 T47 26"/>
+      </svg>
+      <div class="brand-text">
+        <h1 class="brand-name">ThockScope</h1>
+        <p class="brand-tag" data-text="ui.tagline"></p>
       </div>
-      <div class="zones" aria-hidden="true">
-        <span class="zone zone-low"><b>LOW</b> <small>THOCK zone</small></span>
-        <span class="zone zone-mid"><b>MID</b> <small>Body zone</small></span>
-        <span class="zone zone-high"><b>HIGH</b> <small>CLACK zone</small></span>
-      </div>
-      <p class="panel-note" data-lesson="spectrum"></p>
-    </article>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn btn-primary" id="btn-mic">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4"/><path d="M4.5 11a7.5 7.5 0 0 0 15 0M12 18.5V22M8 22h8"/></svg>
+        <span id="mic-text">Start Mic</span>
+      </button>
+      <input type="file" id="file-input" accept="audio/*,video/*" class="visually-hidden">
+      <label class="btn btn-secondary" for="file-input">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M6.5 9.5 12 4l5.5 5.5M4 15v4.5h16V15"/></svg>
+        <span>Upload Recording</span>
+      </label>
+      <button type="button" class="btn btn-secondary" id="btn-play" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path id="play-icon" d="M7 4.5v15l12-7.5z"/></svg>
+        <span id="play-text">Play</span>
+      </button>
+      <label class="sens">Sensitivity
+        <input id="sens" type="range" min="0" max="1" step="0.05" value="0.5">
+      </label>
+      <p class="status" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="status-text"></span></p>
+    </div>
+  </header>
 
-    <article class="panel panel-spectrogram">
-      <h2 class="panel-title" data-text="ui.spectrogram"></h2>
-      <canvas id="cv-spectrogram" class="viz" aria-label="Spectrogram"></canvas>
-      <p class="panel-note" data-lesson="spectrogram"></p>
-    </article>
+  <main class="ts-grid">
+    <section class="panel p-wave" aria-labelledby="h-wave">
+      <h2 class="panel-title" id="h-wave" data-text="ui.waveform"></h2>
+      <p class="caption" data-text="ui.waveCaption"></p>
+      <div class="chart chart-wave"><canvas id="cv-wave" aria-label="Waveform of the last few key presses"></canvas></div>
+    </section>
 
-    <article class="panel panel-profile">
-      <h2 class="panel-title" data-text="ui.profile"></h2>
-      <div class="meter" aria-label="Thock to clack meter">
-        <span class="meter-end meter-left" data-text="ui.meterLeft"></span>
-        <div class="meter-track"><div id="meter-needle" class="meter-needle"></div></div>
-        <span class="meter-end meter-right" data-text="ui.meterRight"></span>
+    <section class="panel p-profile" aria-labelledby="h-profile">
+      <h2 class="panel-title" id="h-profile" data-text="ui.profile"></h2>
+      <p class="caption" data-text="ui.profileCaption"></p>
+      <div class="profile-label">
+        <svg class="burst" viewBox="0 0 200 120" aria-hidden="true"><polygon class="burst-shape" points="100.0,2.0 112.5,20.6 135.2,2.8 136.0,25.4 161.1,16.9 155.2,34.3 174.7,34.5 167.7,46.3 196.5,49.9 172.0,60.0 201.3,70.6 167.7,73.7 182.3,88.1 155.2,85.7 155.4,99.1 136.0,94.6 133.5,114.5 112.5,99.4 100.0,120.9 87.5,99.4 67.5,112.9 64.0,94.6 44.6,99.1 44.8,85.7 15.1,89.0 32.3,73.7 -1.3,70.6 28.0,60.0 6.4,50.2 32.3,46.3 25.3,34.5 44.8,34.3 37.0,15.6 64.0,25.4 64.8,2.8 87.5,20.6"/></svg>
+        <strong class="profile-word" id="prof-word">?</strong>
       </div>
-      <p id="prof-name" class="profile-name">—</p>
-      <p id="prof-desc" class="profile-desc" data-text="ui.micHint"></p>
+      <div class="meter" id="meter" style="--pos:50%" role="meter" aria-label="Thock to clack" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+        <div class="meter-track"><span class="meter-fill"></span><span class="meter-needle"></span></div>
+        <div class="meter-ends"><span data-text="ui.meterLeft"></span><span data-text="ui.meterRight"></span></div>
+      </div>
       <dl class="stats">
-        <div><dt>Main pitch</dt><dd id="st-pitch">—</dd></div>
-        <div><dt>Brightness</dt><dd id="st-bright">—</dd></div>
-        <div><dt>Fade time</dt><dd id="st-decay">—</dd></div>
-        <div><dt>Keys heard</dt><dd id="st-count">0</dd></div>
+        <div class="stat"><dt>Pitch</dt><dd><span class="stat-num" id="st-pitch">—</span><span class="stat-unit">Hz</span></dd><dd class="stat-sub">the loudest note</dd></div>
+        <div class="stat"><dt>Brightness</dt><dd><span class="stat-num stat-word" id="st-bright">—</span></dd><dd class="stat-sub">center at <span id="st-centroid">—</span> Hz</dd></div>
       </dl>
-      <canvas id="cv-hit" class="viz viz-small" aria-label="Shape of the last key press"></canvas>
-    </article>
-  </section>
+      <p class="bubble bubble-say" id="prof-says"></p>
+    </section>
 
-  <section id="file-panel" class="panel panel-file" hidden>
-    <h2 class="panel-title">Your recording: <span id="file-name"></span></h2>
-    <canvas id="cv-overview" class="viz viz-small" aria-label="Whole recording, with each detected key press marked"></canvas>
-    <p class="panel-note">Each red tick is a key press ThockScope found. Click the recording to play from there.</p>
-  </section>
-
-  <section class="panel panel-report" aria-labelledby="report-title">
-    <div class="report-head">
-      <h2 id="report-title" class="panel-title">Report card</h2>
-      <div class="report-actions">
-        <button id="btn-pin" class="btn btn-small" type="button">Save as "Before"</button>
-        <button id="btn-unpin" class="btn btn-small" type="button" hidden>Clear "Before"</button>
-        <button id="btn-reset" class="btn btn-small" type="button">Start over</button>
+    <section class="panel p-spectrum" aria-labelledby="h-spectrum">
+      <h2 class="panel-title" id="h-spectrum" data-text="ui.spectrum"></h2>
+      <p class="caption" data-text="ui.spectrumCaption"></p>
+      <div class="chart chart-spectrum" id="spectrum-wrap">
+        <canvas id="cv-spectrum" aria-label="Frequency spectrum with low, mid and high zones"></canvas>
+        <span class="peak-tag" id="peak-tag" hidden>PEAK <b id="peak-hz"></b></span>
       </div>
-    </div>
-    <div class="report-body">
-      <div class="report-summary">
-        <p id="rep-headline" class="report-headline">Type some keys to get your report.</p>
-        <p id="rep-compare" class="report-compare" hidden></p>
-        <div class="bands" id="rep-bands"></div>
-        <ul id="rep-diagnosis" class="diagnosis-list"></ul>
+      <div class="zones" id="zones">
+        <span class="zone zone-low"><b>LOW</b> <small>thock</small></span>
+        <span class="zone zone-mid"><b>MID</b></span>
+        <span class="zone zone-high"><b>HIGH</b> <small>clack</small></span>
       </div>
-      <canvas id="cv-report" class="viz" aria-label="Average sound curve"></canvas>
-    </div>
-  </section>
+    </section>
 
-  <section id="learn" class="section section-learn" aria-labelledby="learn-title">
-    <h2 id="learn-title" class="section-title">How it works</h2>
-    <div class="demo panel" aria-labelledby="demo-title">
-      <h3 id="demo-title" class="panel-title" data-text="ui.demo"></h3>
-      <ol class="learn-strip">
-        <li><img class="learn-art" src="css/assets/learn-smoothie.svg" alt=""><span><b>1.</b> A key press is a smoothie: many pitches blended into one messy wave.</span></li>
-        <li><img class="learn-art" src="css/assets/learn-unblend.svg" alt=""><span><b>2.</b> The Fourier transform un-blends it, testing every pitch: "how much of you is in here?"</span></li>
-        <li><img class="learn-art" src="css/assets/learn-fruit-list.svg" alt=""><span><b>3.</b> Out comes the fruit list: how loud each pitch is. That's the spectrum!</span></li>
-      </ol>
-      <p class="demo-intro">Turn the fruits up and down. The top shows the blended smoothie (the wave you'd hear). The bottom shows what the Fourier transform finds inside it.</p>
-      <div id="demo-controls" class="demo-controls"></div>
-      <canvas id="cv-demo-wave" class="viz viz-small" aria-label="Blended wave"></canvas>
-      <canvas id="cv-demo-spec" class="viz viz-small" aria-label="Fourier transform of the blend"></canvas>
-    </div>
-    <div id="lessons" class="cards lessons"></div>
-  </section>
+    <section class="panel p-spectro" aria-labelledby="h-spectro">
+      <h2 class="panel-title" id="h-spectro" data-text="ui.spectrogram"></h2>
+      <p class="caption" data-text="ui.spectrogramCaption"></p>
+      <div class="chart chart-spectro">
+        <canvas id="cv-spectrogram" aria-label="Spectrogram of the last four seconds"></canvas>
+        <span class="axis-tag axis-high">HIGH</span><span class="axis-tag axis-low">LOW</span><span class="axis-tag axis-now">NOW</span>
+      </div>
+    </section>
 
-  <section id="recipes" class="section section-recipes" aria-labelledby="recipes-title">
-    <h2 id="recipes-title" class="section-title">Sound recipes</h2>
-    <p class="section-intro">Pick what you want. Each recipe tells you what to change and what you'll see on the graph.</p>
-    <div id="recipe-filters" class="chips" role="group" aria-label="Filter recipes"></div>
-    <div id="recipe-list" class="cards recipes"></div>
-  </section>
+    <section class="panel p-file" id="file-panel" aria-labelledby="h-file" hidden>
+      <h2 class="panel-title" id="h-file">Your recording</h2>
+      <p class="caption"><b id="file-name"></b> · Each pink tick is a key press ThockScope found. Tap the recording to play from there.</p>
+      <div class="chart chart-overview"><canvas id="cv-overview" aria-label="Whole recording, with each detected key press marked"></canvas></div>
+    </section>
 
-  <section id="parts" class="section section-parts" aria-labelledby="parts-title">
-    <h2 id="parts-title" class="section-title">Keyboard parts &amp; their sound</h2>
-    <div id="part-list" class="cards parts"></div>
-  </section>
+    <section class="panel p-report" aria-labelledby="h-report">
+      <div class="report-head">
+        <h2 class="panel-title" id="h-report">Report Card</h2>
+        <div class="report-actions">
+          <button id="btn-pin" class="btn btn-secondary btn-small" type="button">Save as "Before"</button>
+          <button id="btn-unpin" class="btn btn-secondary btn-small" type="button" hidden>Clear "Before"</button>
+          <button id="btn-reset" class="btn btn-secondary btn-small" type="button">Start over</button>
+        </div>
+      </div>
+      <div class="report-body">
+        <div class="report-summary">
+          <p id="rep-headline" class="report-headline">Type some keys to get your report.</p>
+          <p id="rep-compare" class="report-compare" hidden></p>
+          <div class="bands" id="rep-bands"></div>
+          <ul id="rep-diagnosis" class="diagnosis-list"></ul>
+        </div>
+        <div class="chart chart-report"><canvas id="cv-report" aria-label="Average sound curve of all key presses"></canvas></div>
+      </div>
+    </section>
 
-  <section class="section section-tips" aria-labelledby="tips-title">
-    <h2 id="tips-title" class="section-title">Recording tips</h2>
-    <ul id="tips" class="tips"></ul>
-    <h2 class="section-title">Word list</h2>
-    <dl id="glossary" class="glossary"></dl>
-  </section>
-</main>
+    <section class="panel p-learn" id="learn" aria-labelledby="h-learn">
+      <h2 class="panel-title" id="h-learn">How it works: the Fourier transform</h2>
+      <div class="steps">
+        <figure class="step">
+          <svg class="step-art" viewBox="0 0 200 110" aria-hidden="true">
+            <path class="art-cup" d="M40 8 H160 L148 102 H52 Z"/>
+            <path class="art-liquid" d="M45 34 H155 L148 102 H52 Z"/>
+            <path class="art-wave" d="M54.0 57.7 L55.5 56.9 L57.0 58.0 L58.5 63.5 L60.0 72.9 L61.5 82.3 L63.0 87.7 L64.5 87.3 L66.0 82.8 L67.5 78.3 L69.0 76.6 L70.5 77.5 L72.0 78.2 L73.5 76.3 L75.0 71.8 L76.5 67.5 L78.0 66.8 L79.5 70.7 L81.0 76.7 L82.5 80.5 L84.0 79.0 L85.5 72.6 L87.0 64.8 L88.5 59.2 L90.0 56.9 L91.5 56.0 L93.0 53.7 L94.5 48.8 L96.0 43.5 L97.5 41.3 L99.0 44.7 L100.5 52.4 L102.0 60.6 L103.5 65.0 L105.0 64.6 L106.5 61.5 L108.0 59.4 L109.5 60.4 L111.0 63.4 L112.5 65.7 L114.0 64.9 L115.5 62.1 L117.0 60.5 L118.5 63.4 L120.0 71.1 L121.5 80.8 L123.0 87.8 L124.5 89.5 L126.0 86.8 L127.5 82.9 L129.0 80.8 L130.5 80.8 L132.0 80.5 L133.5 77.0 L135.0 70.3 L136.5 62.9 L138.0 58.8 L139.5 60.2 L141.0 65.4 L142.5 70.3 L144.0 71.3 L145.5 67.8"/>
+          </svg>
+          <figcaption><b>1. The smoothie</b> A key press is lots of pitches mixed together, like fruit blended into a smoothie. You hear one sound.</figcaption>
+        </figure>
+        <figure class="step">
+          <svg class="step-art" viewBox="0 0 200 110" aria-hidden="true">
+            <path class="art-jar" d="M52 6 H148 L138 84 H62 Z"/>
+            <rect class="art-base" x="56" y="84" width="88" height="20" rx="3"/>
+            <path class="art-low" d="M62.0 24.0 L64.0 26.0 L66.0 27.9 L68.0 29.6 L70.0 31.0 L72.0 32.1 L74.0 32.7 L76.0 33.0 L78.0 32.8 L80.0 32.2 L82.0 31.2 L84.0 29.8 L86.0 28.1 L88.0 26.3 L90.0 24.3 L92.0 22.3 L94.0 20.4 L96.0 18.7 L98.0 17.2 L100.0 16.1 L102.0 15.3 L104.0 15.0 L106.0 15.1 L108.0 15.7 L110.0 16.7 L112.0 18.0 L114.0 19.6 L116.0 21.5 L118.0 23.5 L120.0 25.4 L122.0 27.4 L124.0 29.1 L126.0 30.6 L128.0 31.8 L130.0 32.6 L132.0 33.0 L134.0 32.9 L136.0 32.4 L138.0 31.5"/>
+            <path class="art-mid" d="M64.0 46.0 L65.0 47.9 L66.0 49.7 L67.0 51.2 L68.0 52.3 L69.0 52.9 L70.0 53.0 L71.0 52.5 L72.0 51.6 L73.0 50.2 L74.0 48.5 L75.0 46.6 L76.0 44.7 L77.0 42.8 L78.0 41.2 L79.0 40.0 L80.0 39.2 L81.0 39.0 L82.0 39.3 L83.0 40.1 L84.0 41.3 L85.0 43.0 L86.0 44.8 L87.0 46.7 L88.0 48.6 L89.0 50.3 L90.0 51.6 L91.0 52.6 L92.0 53.0 L93.0 52.9 L94.0 52.2 L95.0 51.1 L96.0 49.6 L97.0 47.8 L98.0 45.9 L99.0 43.9 L100.0 42.2 L101.0 40.7 L102.0 39.7 L103.0 39.1 L104.0 39.0 L105.0 39.5 L106.0 40.5 L107.0 41.9 L108.0 43.6 L109.0 45.5 L110.0 47.5 L111.0 49.3 L112.0 50.9 L113.0 52.1 L114.0 52.8 L115.0 53.0 L116.0 52.7 L117.0 51.8 L118.0 50.6 L119.0 48.9 L120.0 47.1 L121.0 45.1 L122.0 43.3 L123.0 41.6 L124.0 40.3 L125.0 39.4 L126.0 39.0 L127.0 39.2 L128.0 39.9 L129.0 41.0 L130.0 42.5 L131.0 44.3 L132.0 46.3 L133.0 48.2 L134.0 49.9 L135.0 51.4 L136.0 52.4"/>
+            <path class="art-high" d="M67.0 66.0 L67.8 68.4 L68.5 70.2 L69.3 71.0 L70.0 70.5 L70.8 69.0 L71.5 66.7 L72.3 64.2 L73.0 62.2 L73.8 61.1 L74.5 61.2 L75.3 62.5 L76.0 64.6 L76.8 67.1 L77.5 69.3 L78.3 70.7 L79.0 70.9 L79.8 70.0 L80.5 68.1 L81.3 65.6 L82.0 63.3 L82.8 61.6 L83.5 61.0 L84.3 61.6 L85.0 63.3 L85.8 65.7 L86.5 68.1 L87.3 70.0 L88.0 71.0 L88.8 70.7 L89.5 69.3 L90.3 67.0 L91.0 64.6 L91.8 62.4 L92.5 61.2 L93.3 61.1 L94.0 62.2 L94.8 64.3 L95.5 66.7 L96.3 69.0 L97.0 70.6 L97.8 71.0 L98.5 70.2 L99.3 68.4 L100.0 66.0 L100.8 63.6 L101.5 61.8 L102.3 61.0 L103.0 61.5 L103.8 63.0 L104.5 65.3 L105.3 67.8 L106.0 69.8 L106.8 70.9 L107.5 70.8 L108.3 69.5 L109.0 67.4 L109.8 64.9 L110.5 62.7 L111.3 61.3 L112.0 61.1 L112.8 62.0 L113.5 64.0 L114.3 66.4 L115.0 68.8 L115.8 70.4 L116.5 71.0 L117.3 70.4 L118.0 68.6 L118.8 66.3 L119.5 63.9 L120.3 62.0 L121.0 61.0 L121.8 61.3 L122.5 62.8 L123.3 65.0 L124.0 67.5 L124.8 69.6 L125.5 70.8 L126.3 70.9 L127.0 69.7 L127.8 67.7 L128.5 65.2 L129.3 62.9 L130.0 61.4 L130.8 61.0 L131.5 61.8 L132.3 63.7 L133.0 66.1"/>
+          </svg>
+          <figcaption><b>2. Un-blend it</b> The Fourier transform is a magic un-blender. It tests the sound against every pitch, one at a time, and pulls each one back out.</figcaption>
+        </figure>
+        <figure class="step">
+          <svg class="step-art" viewBox="0 0 200 110" aria-hidden="true">
+            <rect class="art-bar art-bar-low" x="26" y="40" width="40" height="56"/>
+            <rect class="art-bar art-bar-mid" x="80" y="62" width="40" height="34"/>
+            <rect class="art-bar art-bar-high" x="134" y="76" width="40" height="20"/>
+            <path class="art-fruit fruit-a" d="M30 30 Q34 8 54 6 Q50 12 51 18 Q50 30 34 34 Z"/>
+            <path class="art-fruit fruit-b" d="M88 38 Q100 30 112 38 Q110 52 100 58 Q90 52 88 38 Z"/>
+            <circle class="art-fruit fruit-c" cx="154" cy="66" r="8"/>
+            <path class="art-axis" d="M18 96 H184"/>
+          </svg>
+          <figcaption><b>3. The fruit list</b> Out comes a list of how much of each pitch was inside: lots of low "banana", a little high "berry". That list is the spectrum.</figcaption>
+        </figure>
+      </div>
+      <p class="bubble bubble-tip" data-text="ui.learnTip"></p>
 
-<footer class="app-footer">
-  <p>ThockScope runs entirely in your browser. Your audio never leaves your computer.</p>
-</footer>
+      <div class="demo">
+        <h3 class="sub-title" data-text="ui.demo"></h3>
+        <p class="caption" data-text="ui.demoCaption"></p>
+        <div id="demo-controls" class="demo-controls"></div>
+        <div class="chart chart-demo"><canvas id="cv-demo-wave" aria-label="Blended wave"></canvas></div>
+        <div class="chart chart-demo"><canvas id="cv-demo-spec" aria-label="Fourier transform of the blend"></canvas></div>
+      </div>
+
+      <h3 class="sub-title">More about sound</h3>
+      <div id="lessons" class="cards"></div>
+    </section>
+
+    <section class="panel p-recipes" id="recipes" aria-labelledby="h-recipes">
+      <h2 class="panel-title" id="h-recipes">Sound Recipes</h2>
+      <p class="caption">Pick a goal. Change one thing at a time, then record again to compare.</p>
+      <div id="recipe-filters" class="chips" role="group" aria-label="Filter recipes"></div>
+      <div id="recipe-list" class="recipes"></div>
+    </section>
+
+    <section class="panel p-parts" aria-labelledby="h-parts">
+      <h2 class="panel-title" id="h-parts">Keyboard Parts &amp; Their Sound</h2>
+      <p class="caption">Every part of a keyboard changes how it sounds. Here's what each one does.</p>
+      <div id="part-list" class="cards"></div>
+    </section>
+
+    <section class="panel p-tips" aria-labelledby="h-tips">
+      <h2 class="panel-title" id="h-tips">Recording Tips &amp; Word List</h2>
+      <div class="tips-grid">
+        <ul id="tips" class="tips"></ul>
+        <dl id="glossary" class="glossary"></dl>
+      </div>
+    </section>
+  </main>
+
+  <footer class="ts-foot">ThockScope runs entirely in your browser. Your audio never leaves your computer.</footer>
+</div>
 
 <script src="js/fft.js"></script>
 <script src="js/engine.js"></script>

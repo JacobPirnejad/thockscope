@@ -1,254 +1,315 @@
 /*
- * ThockScope — ui.js
- * Baseline UI: draws the canvases, renders content, wires the buttons.
- * Colors come from CSS variables (--c-*, --spec-*) so a new design can restyle
- * everything from CSS alone. Requires fft.js, engine.js, content.js.
+ * ThockScope — ui.js  (Neon Noir front end)
+ * Draws the charts exactly the way the chosen Neon Noir mockup does, but from real
+ * engine data: a scrolling waveform of the last 1.6 s, hatched glowing spectrum bars
+ * with a smooth curve, and a cell spectrogram of the last 4 s.
+ * Colors come from the CSS variables in css/app.css. Requires fft.js, engine.js, content.js.
  */
 (function () {
   'use strict';
-  const E = window.ThockEngine;
-  const C = window.ThockContent;
+  const E = window.ThockEngine, C = window.ThockContent, F = window.ThockFFT;
+  const root = document.documentElement;
   const $ = (sel) => document.querySelector(sel);
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const nowS = () => performance.now() / 1000;
 
-  // ------------------------------------------------------------ theme colors
+  // ------------------------------------------------------------ colors
   let col = {};
+  let pats = {};
   function readColors() {
-    const cs = getComputedStyle(document.documentElement);
-    const v = (n) => cs.getPropertyValue(n).trim();
+    const cs = getComputedStyle(root), v = (n) => cs.getPropertyValue(n).trim();
     col = {
-      bg: v('--c-bg'), grid: v('--c-grid'), text: v('--c-text'), wave: v('--c-wave'), bar: v('--c-bar'),
-      curve: v('--c-curve'), pin: v('--c-pin'), low: v('--c-low'), mid: v('--c-mid'), high: v('--c-high'),
-      hit: v('--c-hit'), fruits: [v('--c-fruit-1'), v('--c-fruit-2'), v('--c-fruit-3')],
-      spec: [v('--spec-0'), v('--spec-1'), v('--spec-2'), v('--spec-3'), v('--spec-4')],
-      font: v('--font') || 'sans-serif',
-      // optional per-zone bar colors + neon glow (fall back to the single bar color / no glow)
-      barLow: v('--c-bar-low'), barMid: v('--c-bar-mid'), barHigh: v('--c-bar-high'),
-      glow: parseFloat(v('--c-glow')) || 0,
+      pink: v('--pink'), violet: v('--violet'), cyan: v('--cyan'), chalk: v('--chalk'), dim: v('--chalk-dim'),
+      edge: v('--edge'), grid: v('--grid'), well: v('--well') || '#070912', caption: v('--caption'), ink: v('--ink') || '#000',
+      ramp: ['--s0', '--s1', '--s2', '--s3', '--s4'].map(v),
+      fruits: [v('--fruit-a'), v('--fruit-b'), v('--fruit-c')],
+      font: v('--font-data') || 'sans-serif',
     };
-    buildSpecLUT();
+    col.zones = [col.pink, col.violet, col.cyan];
+    pats = {};
+  }
+  const font = (px, w) => `${w || 600} ${Math.round(px * DPR)}px ${col.font}`;
+
+  function ctxFor(c) {
+    const r = c.getBoundingClientRect();
+    const w = Math.max(2, Math.round(r.width * DPR)), h = Math.max(2, Math.round(r.height * DPR));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h); g.shadowBlur = 0; g.setLineDash([]);
+    return g;
+  }
+  /** Diagonal ink hatching, like the mockup's bars. */
+  function hatch(g, color) {
+    const id = g.canvas.id + color;
+    if (pats[id]) return pats[id];
+    const s = Math.round(7 * DPR), p = document.createElement('canvas'); p.width = p.height = s;
+    const q = p.getContext('2d'); q.strokeStyle = color; q.lineWidth = Math.max(1, s * 0.16);
+    q.beginPath(); q.moveTo(-1, s + 1); q.lineTo(s + 1, -1); q.moveTo(-1, 1); q.lineTo(1, -1); q.moveTo(s - 1, s + 1); q.lineTo(s + 1, s - 1); q.stroke();
+    return (pats[id] = g.createPattern(p, 'repeat'));
   }
 
-  // ------------------------------------------------------------ canvas setup
-  const canvases = {};
-  function canvas(id) {
-    if (canvases[id]) return canvases[id];
-    const cv = document.getElementById(id);
-    const c = { cv, ctx: cv.getContext('2d'), w: 0, h: 0, dpr: 1 };
-    canvases[id] = c;
-    fit(c);
-    return c;
-  }
-  function fit(c) {
-    const r = c.cv.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
-    if (w === c.w && h === c.h && dpr === c.dpr) return false;
-    c.cv.width = w * dpr; c.cv.height = h * dpr; c.w = w; c.h = h; c.dpr = dpr;
-    c.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    return true;
-  }
+  // ------------------------------------------------------------ frequency axis (same as the mockup)
+  const FMIN = 60, FMAX = 12000, LR = Math.log(FMAX / FMIN);
+  const fx = (f) => Math.log(f / FMIN) / LR;
+  const xf = (x) => FMIN * Math.exp(x * LR);
+  const ZONES = [E.BANDS[0].to, E.BANDS[1].to];
+  const zoneOf = (f) => (f < ZONES[0] ? 0 : f < ZONES[1] ? 1 : 2);
+  const NB = 36; // bars (and spectrogram rows)
 
-  // ------------------------------------------------------------ axes
-  const LMIN = Math.log(40), LMAX = Math.log(16000);
-  const xOfHz = (hz, w) => ((Math.log(hz) - LMIN) / (LMAX - LMIN)) * w;
-  const TICKS = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
-  const fmtHz = (hz) => (hz >= 1000 ? (hz / 1000).toFixed(hz >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : Math.round(hz) + '');
-
-  function drawFreqBackdrop(c, labels = true) {
-    const { ctx, w, h } = c;
-    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
-    const zoneCol = { low: col.low, mid: col.mid, high: col.high };
-    ctx.font = `600 10px ${col.font}`;
-    for (const b of E.BANDS) {
-      const x0 = xOfHz(b.from, w), x1 = xOfHz(b.to, w);
-      ctx.fillStyle = zoneCol[b.id]; ctx.fillRect(x0, 0, x1 - x0, h);
-      if (labels) { ctx.fillStyle = col.text; ctx.textAlign = 'center'; ctx.fillText(b.nick.toUpperCase(), (x0 + x1) / 2, 12); }
+  // Map the engine's 96 log bins onto the 36 bars.
+  const binsHz = E.summarize([]).binsHz;
+  const barMap = [];
+  for (let i = 0; i < NB; i++) {
+    const lo = xf(i / NB), hi = xf((i + 1) / NB), idx = [];
+    for (let b = 0; b < binsHz.length; b++) if (binsHz[b] >= lo && binsHz[b] < hi) idx.push(b);
+    if (!idx.length) { let best = 0; for (let b = 1; b < binsHz.length; b++) if (Math.abs(Math.log(binsHz[b] / xf((i + 0.5) / NB))) < Math.abs(Math.log(binsHz[best] / xf((i + 0.5) / NB)))) best = b; idx.push(best); }
+    barMap.push(idx);
+  }
+  function toBars(binsDb, out) {
+    out = out || new Float32Array(NB);
+    for (let i = 0; i < NB; i++) {
+      let p = 0; for (const b of barMap[i]) p += Math.pow(10, binsDb[b] / 10);
+      out[i] = 10 * Math.log10(p / barMap[i].length + 1e-20);
     }
-    ctx.strokeStyle = col.grid; ctx.lineWidth = 1; ctx.fillStyle = col.text; ctx.textAlign = 'center';
-    for (const t of TICKS) {
-      const x = Math.round(xOfHz(t, w)) + 0.5;
-      ctx.beginPath(); ctx.moveTo(x, 18); ctx.lineTo(x, h - 14); ctx.stroke();
-      if (labels) ctx.fillText(fmtHz(t) + (t === 50 ? ' Hz' : ''), x, h - 3);
-    }
+    return out;
   }
 
-  /** Bars + smooth curve on a log frequency axis. */
-  function drawSpectrum(c, hz, barsDb, curveDb, opts = {}) {
-    const { ctx, w, h } = c;
-    const top = opts.top ?? -20, bottom = opts.bottom ?? -100;
-    const y = (db) => 18 + (1 - Math.max(0, Math.min(1, (db - bottom) / (top - bottom)))) * (h - 34);
-    drawFreqBackdrop(c, opts.labels !== false);
-    if (barsDb) {
-      const zoneColor = (f) => (f < E.BANDS[0].to ? col.barLow : f < E.BANDS[1].to ? col.barMid : col.barHigh) || col.bar;
-      const n = hz.length, bw = w / n;
-      ctx.save();
-      ctx.shadowBlur = col.glow;
-      for (let i = 0; i < n; i++) {
-        const x = xOfHz(hz[i], w) - bw / 2, yy = y(barsDb[i]);
-        ctx.fillStyle = ctx.shadowColor = zoneColor(hz[i]);
-        ctx.fillRect(x + 0.5, yy, Math.max(1, bw - 1.5), h - 16 - yy);
+  // ------------------------------------------------------------ live display state
+  const WAVE_WIN = 1.6, SG_WIN = 4.0, WAVE_COL = 0.004; // seconds
+  let waveCols = [];            // {t, top, bot}
+  let waveRef = 0.02;           // loudest recent wiggle (auto-zoom)
+  let specCols = [];            // {t, v: Float32Array(NB) 0..1}
+  const holdDb = new Float32Array(NB).fill(-160);
+  let topDb = -60;              // auto-range top for bars (loudest recent level)
+  let noiseDb = null;           // room noise level, so silence stays dark
+  let lastFrameT = 0;
+  let warm = 0;
+  let viewT = nowS();           // the "NOW" edge of the scrolling charts
+
+  function resetDisplay() {
+    waveCols = []; specCols = []; holdDb.fill(-160); topDb = -60; noiseDb = null; waveRef = 0.02; lastFrameT = 0; waveClock = 0; warm = 0;
+  }
+  function normDb(db) {
+    const lo = Math.max(topDb - 50, (noiseDb == null ? -200 : noiseDb + 12));
+    return clamp((db - lo) / (topDb + 3 - lo), 0, 1);
+  }
+
+  /** Waveform: split a block of raw samples (starting at time t0) into 4 ms columns. */
+  function pushWave(samples, t0, sr) {
+    const per = Math.max(1, Math.round(sr * WAVE_COL));
+    for (let s = 0; s < samples.length; s += per) {
+      let mx = 0, mn = 0;
+      for (let i = s; i < Math.min(samples.length, s + per); i++) { const x = samples[i]; if (x > mx) mx = x; if (x < mn) mn = x; }
+      waveCols.push({ t: t0 + s / sr, top: mx, bot: -mn });
+      waveRef = Math.max(waveRef, mx, -mn);
+    }
+    const dur = samples.length / sr;
+    waveRef = Math.max(0.02, waveRef * Math.exp(-dur / 4));
+    while (waveCols.length && waveCols[0].t < t0 + dur - WAVE_WIN - 0.1) waveCols.shift();
+  }
+  let waveClock = 0;
+  E.on('samples', ({ data, sampleRate }) => {
+    const dur = data.length / sampleRate, t = nowS();
+    // keep blocks back-to-back so the scrolling wave never has holes
+    const start = waveClock && Math.abs(t - (waveClock + dur)) < 0.15 ? waveClock : t - dur;
+    pushWave(data, start, sampleRate);
+    waveClock = start + dur;
+  });
+
+  /** Spectrum + spectrogram: feed one analyser frame into the histories. */
+  function ingest(t, binsDb, dt) {
+    // spectrum: bars with a peak-hold that slowly falls, and an auto-ranging top
+    const cur = toBars(binsDb);
+    let mx = -200;
+    for (let i = 0; i < NB; i++) { holdDb[i] = Math.max(cur[i], holdDb[i] - 40 * dt); if (cur[i] > mx) mx = cur[i]; }
+    // noise floor = typical (median) level, falling fast and rising slowly
+    const med = Array.from(cur).sort((a, b) => a - b)[NB >> 1];
+    noiseDb = noiseDb == null ? med : med < noiseDb ? med : noiseDb + (med - noiseDb) * Math.min(1, dt * 0.15);
+    topDb = Math.max(mx, topDb - 5 * dt, noiseDb + 35);
+    const v = new Float32Array(NB);
+    for (let i = 0; i < NB; i++) v[i] = normDb(cur[i]);
+    if (++warm > 4) specCols.push({ t, v }); // skip the first frames while the scale settles
+    while (specCols.length && specCols[0].t < t - SG_WIN - 0.2) specCols.shift();
+  }
+
+  // ------------------------------------------------------------ drawing: waveform (mockup "line" mode)
+  function drawWave() {
+    const c = $('#cv-wave'); const g = ctxFor(c), W = c.width, H = c.height, mid = H / 2, amp = H * 0.44;
+    g.strokeStyle = col.edge; g.lineWidth = 1.5 * DPR;
+    g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+    if (!waveCols.length) return;
+    const colW = (W * WAVE_COL) / WAVE_WIN, t0 = viewT - WAVE_WIN;
+    g.strokeStyle = col.cyan; g.lineWidth = Math.max(1, colW * 0.7);
+    g.shadowColor = col.cyan; g.shadowBlur = 10 * DPR;
+    g.beginPath();
+    for (const w of waveCols) {
+      if (w.t < t0) continue;
+      const x = ((w.t - t0) / WAVE_WIN) * W;
+      const top = Math.max(0.02, w.top / waveRef), bot = Math.max(0.02, w.bot / waveRef);
+      g.moveTo(x, mid - Math.min(1, top) * amp); g.lineTo(x, mid + Math.min(1, bot) * amp);
+    }
+    g.stroke(); g.shadowBlur = 0;
+  }
+
+  // ------------------------------------------------------------ drawing: spectrum (mockup hatch bars + glow curve)
+  /**
+   * @param canvas
+   * @param vals   Float32Array(NB) 0..1 bar heights
+   * @param opts   { pin: Float32Array 0..1 (dashed "Before" curve), peakWrap: element to position the PEAK tag }
+   */
+  function drawBars(canvas, vals, opts = {}) {
+    const g = ctxFor(canvas), W = canvas.width, H = canvas.height, lw = 2 * DPR;
+    const padB = 24 * DPR, padT = 18 * DPR, ch = H - padB - padT;
+    g.strokeStyle = col.grid; g.lineWidth = DPR; g.setLineDash([4 * DPR, 4 * DPR]);
+    for (let k = 1; k < 4; k++) { const gy = Math.round(padT + (ch * k) / 4) + 0.5; g.beginPath(); g.moveTo(0, gy); g.lineTo(W, gy); g.stroke(); }
+    g.strokeStyle = col.dim; g.lineWidth = 1.5 * DPR; g.setLineDash([6 * DPR, 4 * DPR]);
+    ZONES.forEach((f) => { const x = Math.round(fx(f) * W) + 0.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H - padB); g.stroke(); });
+    g.setLineDash([]);
+
+    const slot = W / NB, gap = slot * 0.24, bw = slot - gap;
+    if (vals) {
+      for (let i = 0; i < NB; i++) {
+        const z = zoneOf(xf((i + 0.5) / NB)), h = Math.max(3 * DPR, vals[i] * ch);
+        const x = i * slot + gap / 2, y = padT + ch - h;
+        g.shadowColor = g.fillStyle = col.zones[z]; g.shadowBlur = 12 * DPR;
+        g.fillRect(x, y, bw, h); g.shadowBlur = 0;
+        g.fillStyle = hatch(g, 'rgba(0,0,0,.45)'); g.fillRect(x, y, bw, h);
+        g.strokeStyle = col.ink; g.lineWidth = lw; g.strokeRect(x, y, bw, h);
       }
-      ctx.restore();
     }
-    const line = (arr, color, dash, width) => {
-      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.lineJoin = 'round';
-      ctx.shadowColor = color; ctx.shadowBlur = col.glow * 0.7;
-      ctx.beginPath();
-      for (let i = 0; i < hz.length; i++) { const x = xOfHz(hz[i], w), yy = y(arr[i]); i ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
-      ctx.stroke(); ctx.restore();
+    const curve = (arr, color, dash) => {
+      const lift = 7 * DPR;
+      const pts = Array.from(arr, (v, n) => [(n + 0.5) * slot, padT + ch - v * ch - lift]);
+      g.lineJoin = g.lineCap = 'round';
+      g.shadowColor = color; g.shadowBlur = dash ? 0 : 14 * DPR;
+      g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+      for (let n = 0; n < pts.length - 1; n++) {
+        const p0 = pts[n - 1] || pts[n], p1 = pts[n], p2 = pts[n + 1], p3 = pts[n + 2] || p2;
+        g.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6, p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6, p2[0], p2[1]);
+      }
+      g.strokeStyle = color; g.lineWidth = 3 * DPR; g.setLineDash(dash ? [8 * DPR, 6 * DPR] : []);
+      g.stroke(); g.setLineDash([]); g.shadowBlur = 0;
     };
-    if (opts.pinDb) line(opts.pinDb, col.pin, [6, 4], 2);
-    if (curveDb) line(curveDb, col.curve, null, 3);
+    if (opts.pin) curve(opts.pin, col.caption, true);
+    if (vals) curve(vals, col.chalk, false);
+
+    g.fillStyle = col.dim; g.font = font(11); g.textBaseline = 'bottom'; g.textAlign = 'center';
+    [[100, '100'], [250, '250'], [500, '500'], [1000, '1k'], [2000, '2k'], [5000, '5k'], [10000, '10k Hz']].forEach(([f, label]) => {
+      const tw = g.measureText(label).width, x = Math.min(W - tw / 2 - 2 * DPR, Math.max(tw / 2 + 2 * DPR, fx(f) * W));
+      g.fillText(label, x, H - 4 * DPR);
+    });
+  }
+  function drawSpectrum() {
+    const has = holdDb[0] > -150;
+    const vals = has ? Float32Array.from(holdDb, normDb) : null;
+    drawBars($('#cv-spectrum'), vals);
   }
 
-  function autoRange(arr) {
-    let mx = -Infinity;
-    for (const v of arr) if (isFinite(v) && v > mx) mx = v;
-    if (!isFinite(mx)) mx = -20;
-    return { top: mx + 4, bottom: mx - 60 };
-  }
-
-  function drawWave(c, data, color, opts = {}) {
-    const { ctx, w, h } = c;
-    if (!opts.keep) { ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h); }
-    ctx.strokeStyle = col.grid; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, h / 2 + 0.5); ctx.lineTo(w, h / 2 + 0.5); ctx.stroke();
-    if (!data) return;
-    let gain = opts.gain || 1;
-    if (opts.autoGain) { let m = 0; for (const v of data) m = Math.max(m, Math.abs(v)); gain = m > 1e-4 ? 0.9 / m : 1; }
-    ctx.save();
-    ctx.strokeStyle = ctx.shadowColor = color || col.wave; ctx.shadowBlur = opts.alpha ? 0 : col.glow * 0.6;
-    ctx.lineWidth = opts.width || 2; ctx.globalAlpha = opts.alpha || 1;
-    ctx.beginPath();
-    const n = data.length, step = Math.max(1, Math.floor(n / (w * 2)));
-    for (let i = 0, j = 0; i < n; i += step, j++) {
-      const x = (i / (n - 1)) * w, yy = h / 2 - data[i] * gain * (h / 2 - 4);
-      j ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy);
-    }
-    ctx.stroke(); ctx.restore();
-  }
-
-  // ------------------------------------------------------------ spectrogram
-  let specLUT = null;
-  function hexToRgb(s) {
-    const d = document.createElement('div'); d.style.color = s; document.body.appendChild(d);
-    const m = getComputedStyle(d).color.match(/\d+(\.\d+)?/g) || [0, 0, 0]; d.remove();
-    return m.slice(0, 3).map(Number);
-  }
-  function buildSpecLUT() {
-    const stops = col.spec.map(hexToRgb);
-    specLUT = new Uint8ClampedArray(256 * 3);
-    for (let i = 0; i < 256; i++) {
-      const t = (i / 255) * (stops.length - 1), k = Math.min(stops.length - 2, Math.floor(t)), f = t - k;
-      for (let ch = 0; ch < 3; ch++) specLUT[i * 3 + ch] = stops[k][ch] * (1 - f) + stops[k + 1][ch] * f;
-    }
-  }
-  function clearSpectrogram() { const c = canvas('cv-spectrogram'); c.ctx.fillStyle = col.bg; c.ctx.fillRect(0, 0, c.w, c.h); }
-  function pushSpectrogram(binsHz, binsDb) {
-    const c = canvas('cv-spectrogram');
-    const { ctx, cv } = c;
-    const colW = 2 * c.dpr, H = cv.height;
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(cv, colW, 0, cv.width - colW, H, 0, 0, cv.width - colW, H);
-    const img = ctx.createImageData(colW, H);
-    const n = binsDb.length;
-    for (let yy = 0; yy < H; yy++) {
-      const b = Math.min(n - 1, Math.floor((1 - yy / H) * n));
-      const t = Math.max(0, Math.min(255, Math.round(((binsDb[b] + 100) / 75) * 255)));
-      for (let xx = 0; xx < colW; xx++) {
-        const o = (yy * colW + xx) * 4;
-        img.data[o] = specLUT[t * 3]; img.data[o + 1] = specLUT[t * 3 + 1]; img.data[o + 2] = specLUT[t * 3 + 2]; img.data[o + 3] = 255;
+  // ------------------------------------------------------------ drawing: spectrogram (mockup "cells" mode)
+  function drawSpectro() {
+    const c = $('#cv-spectrogram'); const g = ctxFor(c), W = c.width, H = c.height;
+    const ramp = col.ramp, L = ramp.length, rows = NB;
+    const cols = Math.max(20, Math.round(((rows * W) / H) * 0.6));
+    const dt = SG_WIN / cols, cw = W / cols, rh = H / rows, t0 = viewT - SG_WIN;
+    g.fillStyle = ramp[0]; g.fillRect(0, 0, W, H);
+    const cell = new Float32Array(rows);
+    let k = 0, lastT = -Infinity;
+    for (let j = 0; j < cols; j++) {
+      const a = t0 + j * dt, b = a + dt;
+      let any = false;
+      while (k < specCols.length && specCols[k].t < a) k++;
+      for (let m = k; m < specCols.length && specCols[m].t < b; m++) {
+        if (!any) cell.fill(0);
+        any = true; lastT = specCols[m].t;
+        const v = specCols[m].v; for (let r = 0; r < rows; r++) if (v[r] > cell[r]) cell[r] = v[r];
+      }
+      // no frame landed in this column (the browser skipped one): repeat the last column if it's recent
+      if (!any && !(a - lastT < 0.06 && lastT > -Infinity)) continue;
+      const x = j * cw;
+      for (let r = 0; r < rows; r++) {
+        const lv = Math.min(L - 1, Math.floor(Math.pow(cell[r], 0.7) * L));
+        if (lv > 0) { g.fillStyle = ramp[lv]; g.fillRect(Math.floor(x), Math.floor(H - (r + 1) * rh), Math.ceil(cw) + 1, Math.ceil(rh) + 1); }
       }
     }
-    ctx.putImageData(img, cv.width - colW, 0);
-    ctx.restore();
+    g.strokeStyle = 'rgba(236,233,245,.3)'; g.lineWidth = 1.5 * DPR; g.setLineDash([6 * DPR, 5 * DPR]);
+    ZONES.forEach((f) => { const y = Math.round(H - fx(f) * H) + 0.5; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); });
+    g.setLineDash([]);
   }
-  let markHit = false;
 
-  // ------------------------------------------------------------ state + status
-  const status = (msg, isError) => { const s = $('#status'); s.textContent = msg || ''; s.classList.toggle('error', !!isError); };
-  let liveHits = 0;
-  let currentSummary = null;   // what the report shows
-  let pinned = null;           // { label, curveDb, thockScore, profileName }
-  try { pinned = JSON.parse(localStorage.getItem('thockscope.before') || 'null'); } catch (_) { pinned = null; }
-
-  function setButtons(state) {
-    const mic = $('#btn-mic');
-    mic.textContent = state === 'mic' ? 'Listening…' : 'Start Mic';
-    mic.classList.toggle('is-on', state === 'mic');
-    $('#btn-stop').disabled = state === 'idle';
-    const play = $('#btn-play');
-    play.hidden = !E.file;
-    play.textContent = state === 'file-playing' ? 'Pause' : 'Play recording';
-  }
+  function drawLive() { drawWave(); drawSpectrum(); drawSpectro(); }
 
   // ------------------------------------------------------------ profile card
-  /** Floating "PEAK 248 Hz" tag over the spectrum (hidden when there's no peak). */
+  function setStatus(msg, isError) {
+    const s = $('#status-text'); s.textContent = msg || '';
+    $('.status').classList.toggle('error', !!isError);
+  }
   function showPeak(hz) {
-    const tag = $('#peak-tag'); if (!tag) return;
+    const tag = $('#peak-tag');
     if (!hz) { tag.hidden = true; return; }
-    // keep the tag fully inside the chart near the edges
-    const pct = Math.max(8, Math.min(92, ((Math.log(hz) - LMIN) / (LMAX - LMIN)) * 100));
-    tag.style.setProperty('--peak-x', pct + '%');
+    $('#spectrum-wrap').style.setProperty('--peak-x', clamp(fx(hz) * 100, 7, 93).toFixed(1) + '%');
     $('#peak-hz').textContent = Math.round(hz) + ' Hz';
     tag.hidden = false;
   }
-  function profileText(id) { return C.profiles[id] || { name: '—', text: '' }; }
-  function showProfile(f, live) {
-    const p = profileText(f.profile);
-    $('#prof-name').textContent = p.name;
-    $('#prof-desc').textContent = p.soundsLike ? `Sounds like ${p.soundsLike}.` : '';
-    $('.panel-profile').dataset.profile = f.profile;   // lets the theme swap the burst for clacky sounds
+  function showProfile(f) {
+    const p = C.profiles[f.profile] || {};
+    $('#prof-word').textContent = p.word || p.name || '?';
+    $('#prof-says').textContent = p.says || '';
+    const clackiness = clamp(100 - f.thockScore, 3, 97); // keep the needle visible at the ends
+    const meter = $('#meter');
+    meter.style.setProperty('--pos', clackiness + '%');
+    meter.setAttribute('aria-valuenow', String(clackiness));
+    $('#st-pitch').textContent = Math.round(f.peakHz);
+    $('#st-bright').textContent = C.brightnessWord(f.centroid);
+    $('#st-centroid').textContent = Math.round(f.centroid / 10) * 10 >= 1000 ? (Math.round(f.centroid / 10) * 10).toLocaleString('en-US') : Math.round(f.centroid);
+    root.setAttribute('data-profile', f.profile === 'clack' || f.profile === 'sharp-clack' ? 'clacky' : 'thocky');
     showPeak(f.peakHz);
-    const needle = $('#meter-needle');
-    needle.style.left = f.thockScore + '%';
-    needle.classList.toggle('is-live', !!live);
-    $('#st-pitch').textContent = Math.round(f.peakHz) + ' Hz';
-    $('#st-bright').textContent = Math.round(f.centroid) + ' Hz';
-    if (f.decayMs != null) $('#st-decay').textContent = f.decayMs + ' ms';
+  }
+  function clearProfile() {
+    $('#prof-word').textContent = '?';
+    $('#prof-says').textContent = C.ui.idle;
+    $('#meter').style.setProperty('--pos', '50%');
+    $('#st-pitch').textContent = '—'; $('#st-bright').textContent = '—'; $('#st-centroid').textContent = '—';
+    root.removeAttribute('data-profile');
+    showPeak(0);
   }
 
-  function onKeystroke(hit) {
-    liveHits++;
-    $('#st-count').textContent = liveHits;
-    showProfile(hit, true);
-    const card = $('.panel-profile'); card.classList.remove('hit-flash'); void card.offsetWidth; card.classList.add('hit-flash');
-    const c = canvas('cv-hit');
-    drawWave(c, hit.snippet, col.hit, { autoGain: true });
-    markHit = true;
-    // While a file plays, keep showing the file's full offline report.
-    if (E.state === 'mic' && (liveHits % 3 === 0 || liveHits < 10)) renderReport(E.getSessionSummary(), 'live');
-  }
+  // ------------------------------------------------------------ report card
+  let currentSummary = null;
+  let pinned = null;
+  try { pinned = JSON.parse(localStorage.getItem('thockscope.before') || 'null'); } catch (_) { pinned = null; }
+  if (pinned && (!pinned.bars || pinned.bars.length !== NB)) pinned = null; // older saved format
 
-  // ------------------------------------------------------------ report
+  function summaryBars(sum) {
+    const db = toBars(sum.binsDb);
+    let mx = -200; for (const v of db) mx = Math.max(mx, v);
+    return Float32Array.from(db, (v) => clamp((v - (mx - 57)) / 60, 0, 1));
+  }
   function renderReport(sum, source) {
     currentSummary = sum;
     const head = $('#rep-headline'), bands = $('#rep-bands'), list = $('#rep-diagnosis'), cmp = $('#rep-compare');
     list.innerHTML = ''; bands.innerHTML = '';
     if (!sum || !sum.count) {
-      head.textContent = source === 'file' ? 'No key presses found in this recording. Try raising Sensitivity and loading it again.' : 'Type some keys to get your report.';
+      head.textContent = source === 'file' ? 'No key presses found in this recording. Raise Sensitivity and load it again.' : 'Type some keys to get your report.';
       cmp.hidden = true;
-      drawReportCurve(null);
+      drawBars($('#cv-report'), null, { pin: pinned && Float32Array.from(pinned.bars) });
       return;
     }
-    head.textContent = `${sum.profileName} · score ${sum.thockScore}/100 · ${sum.count} keys · main pitch ${sum.peakHz} Hz`;
-
+    head.textContent = `${sum.profileName} · ${sum.thockScore}/100 thock · ${sum.count} keys · pitch ${sum.peakHz} Hz`;
     const pct = (v) => Math.round(v * 100);
-    [['low', 'band-low', 'Low'], ['mid', 'band-mid', 'Mid'], ['high', 'band-high', 'High']].forEach(([k, cls, name]) => {
+    [['low', 'band-low', 'LOW'], ['mid', 'band-mid', 'MID'], ['high', 'band-high', 'HIGH']].forEach(([k, cls, name]) => {
       const s = el('span', cls, pct(sum.bands[k]) >= 14 ? `${name} ${pct(sum.bands[k])}%` : '');
-      s.style.width = Math.max(4, pct(sum.bands[k])) + '%';
+      s.style.width = Math.max(3, pct(sum.bands[k])) + '%';
       s.title = `${name}: ${pct(sum.bands[k])}% of the sound energy`;
       bands.appendChild(s);
     });
-
     if (pinned) {
       const d = sum.thockScore - pinned.thockScore;
       cmp.hidden = false;
       cmp.textContent = d === 0 ? `Same score as "Before" (${pinned.thockScore}).`
         : `${Math.abs(d)} points ${d > 0 ? 'deeper (more thock)' : 'brighter (more clack)'} than "Before" (${pinned.thockScore}, ${pinned.profileName}).`;
     } else cmp.hidden = true;
-
     for (const id of sum.diagnosis) {
       const d = C.diagnosis[id]; if (!d) continue;
       const li = el('li', d.kind);
@@ -266,21 +327,14 @@
       }
       list.appendChild(li);
     }
-    drawReportCurve(sum);
+    drawBars($('#cv-report'), summaryBars(sum), { pin: pinned && Float32Array.from(pinned.bars) });
   }
-
-  function drawReportCurve(sum) {
-    const c = canvas('cv-report');
-    if (!sum || !sum.count) { drawSpectrum(c, E.summarize([]).binsHz, null, null, { pinDb: pinned && pinned.curveDb }); return; }
-    drawSpectrum(c, sum.binsHz, sum.binsDb, sum.curveDb, { ...autoRange(sum.curveDb), pinDb: pinned && pinned.curveDb });
-  }
-
   function pinCurrent() {
-    if (!currentSummary || !currentSummary.count) { status('Record or load some typing first, then save it as "Before".'); return; }
-    pinned = { curveDb: Array.from(currentSummary.curveDb), thockScore: currentSummary.thockScore, profileName: currentSummary.profileName };
+    if (!currentSummary || !currentSummary.count) { setStatus('Record or load some typing first, then save it as "Before".'); return; }
+    pinned = { bars: Array.from(summaryBars(currentSummary)), thockScore: currentSummary.thockScore, profileName: currentSummary.profileName };
     try { localStorage.setItem('thockscope.before', JSON.stringify(pinned)); } catch (_) {}
     $('#btn-unpin').hidden = false;
-    status('Saved as "Before" (dashed line). Now make a change and record again to compare.');
+    setStatus('Saved as "Before" (yellow dashed line). Make one change, then record again to compare.');
     renderReport(currentSummary);
   }
   function unpin() {
@@ -290,92 +344,104 @@
     renderReport(currentSummary);
   }
 
-  // ------------------------------------------------------------ file overview
+  // ------------------------------------------------------------ recording overview
   function drawOverview() {
     if (!E.file) return;
-    const c = canvas('cv-overview'); fit(c);
-    const { ctx, w, h } = c, rep = E.file.report, ov = rep.overview, n = ov.length / 2;
-    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
+    const c = $('#cv-overview'); const g = ctxFor(c), W = c.width, H = c.height;
+    const rep = E.file.report, ov = rep.overview, n = ov.length / 2;
     let mx = 1e-4; for (const v of ov) mx = Math.max(mx, Math.abs(v));
-    ctx.fillStyle = col.wave;
+    g.fillStyle = col.cyan; g.shadowColor = col.cyan; g.shadowBlur = 6 * DPR;
     for (let i = 0; i < n; i++) {
-      const x = (i / n) * w, y0 = h / 2 - (ov[i * 2 + 1] / mx) * (h / 2 - 4), y1 = h / 2 - (ov[i * 2] / mx) * (h / 2 - 4);
-      ctx.fillRect(x, y0, Math.max(1, w / n), Math.max(1, y1 - y0));
+      const x = (i / n) * W, y0 = H / 2 - (ov[i * 2 + 1] / mx) * (H / 2 - 4 * DPR), y1 = H / 2 - (ov[i * 2] / mx) * (H / 2 - 4 * DPR);
+      g.fillRect(x, y0, Math.max(DPR, W / n), Math.max(DPR, y1 - y0));
     }
-    ctx.fillStyle = col.hit;
-    for (const hit of rep.hits) ctx.fillRect((hit.time / rep.duration) * w - 1, 0, 2, 8);
+    g.shadowBlur = 0; g.fillStyle = col.pink;
+    for (const hit of rep.hits) g.fillRect((hit.time / rep.duration) * W - DPR, 0, 2 * DPR, 10 * DPR);
     const ph = E.state.startsWith('file') ? E._playhead() : E.file.offset;
-    if (ph > 0) { ctx.fillStyle = col.curve; ctx.fillRect((ph / rep.duration) * w - 1, 0, 2, h); }
+    if (ph > 0) { g.fillStyle = col.caption; g.fillRect((ph / rep.duration) * W - DPR, 0, 2 * DPR, H); }
   }
 
-  // ------------------------------------------------------------ live loop
+  // ------------------------------------------------------------ engine events
+  let liveHits = 0;
   E.on('frame', (fr) => {
-    drawWave(canvas('cv-wave'), fr.waveform, col.wave, { gain: 3 });
-    drawSpectrum(canvas('cv-spectrum'), fr.binsHz, fr.binsDb, fr.curveDb, { pinDb: null });
-    pushSpectrogram(fr.binsHz, fr.binsDb);
-    if (markHit) {
-      markHit = false;
-      const c = canvas('cv-spectrogram'); c.ctx.fillStyle = col.hit; c.ctx.fillRect(c.w - 2, 0, 2, 4);
-    }
+    const t = nowS();
+    const dt = lastFrameT ? Math.min(0.1, t - lastFrameT) : 1 / 60;
+    lastFrameT = t; viewT = t;
+    ingest(t, fr.binsDb, dt);
+    drawLive();
     if (fr.playhead != null) drawOverview();
   });
-  E.on('keystroke', onKeystroke);
-  E.on('state', (s) => {
-    setButtons(s);
-    if (s === 'mic') status('Listening… type on your keyboard! (Headphones on so the app doesn\'t hear itself.)');
-    else if (s === 'file-playing') status('Playing your recording…');
-    else if (s === 'idle' && !E.file) status('Stopped.');
+  E.on('keystroke', (hit) => {
+    liveHits++;
+    showProfile(hit);
+    if (E.state === 'mic') {
+      setStatus(`Listening… ${liveHits} key${liveHits === 1 ? '' : 's'} heard.`);
+      if (liveHits % 3 === 0 || liveHits < 10) renderReport(E.getSessionSummary(), 'live');
+    }
   });
-  E.on('ended', () => { status('Finished playing.'); drawOverview(); });
+  E.on('state', (s) => {
+    const live = s === 'mic' || s === 'file-playing';
+    root.setAttribute('data-live', live ? 'on' : 'off');
+    $('#mic-text').textContent = s === 'mic' ? 'Stop Mic' : 'Start Mic';
+    const play = $('#btn-play');
+    play.hidden = !E.file;
+    $('#play-text').textContent = s === 'file-playing' ? 'Pause' : 'Play';
+    $('#play-icon').setAttribute('d', s === 'file-playing' ? 'M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z' : 'M7 4.5v15l12-7.5z');
+    if (s === 'mic') setStatus('Listening… type on your keyboard! (Headphones on, so the app doesn\'t hear itself.)');
+    else if (s === 'file-playing') setStatus('Playing your recording…');
+    else if (s === 'idle' && !E.file && liveHits) setStatus(`Stopped. ${liveHits} key${liveHits === 1 ? '' : 's'} heard.`);
+  });
+  E.on('ended', () => { setStatus('Finished playing.'); drawOverview(); });
   E.on('file', (rep) => {
     $('#file-panel').hidden = false;
     $('#file-name').textContent = rep.name;
     renderReport(rep.summary, 'file');
-    if (rep.summary.count) showProfile({ ...rep.summary, centroid: rep.summary.centroid }, false);
-    $('#st-count').textContent = rep.summary.count;
-    setButtons(E.state);
-    requestAnimationFrame(drawOverview);
+    if (rep.summary.count) {
+      const last = rep.hits[rep.hits.length - 1];
+      showProfile({ ...rep.summary, centroid: rep.summary.centroid, peakHz: rep.summary.peakHz, profile: rep.summary.profile, thockScore: rep.summary.thockScore });
+      holdDb.set(toBars(rep.summary.binsDb)); topDb = Math.max(...holdDb);
+      void last;
+    }
+    $('#btn-play').hidden = false;
+    requestAnimationFrame(() => { drawOverview(); drawSpectrum(); });
   });
 
   // ------------------------------------------------------------ controls
   $('#btn-mic').addEventListener('click', async () => {
     if (E.state === 'mic') { E.stop(); return; }
     try {
-      status('Asking for the microphone…');
+      setStatus('Asking for the microphone…');
       await E.startMic();
-      liveHits = 0; E.resetSession(); $('#st-count').textContent = '0';
-      clearSpectrogram();
+      liveHits = 0; E.resetSession(); resetDisplay(); clearProfile();
     } catch (err) {
       const msg = err && err.name === 'NotAllowedError' ? 'Microphone permission was blocked. Allow it in your browser\'s address bar and try again.'
         : err && err.name === 'NotFoundError' ? 'No microphone found. Plug one in, or upload a recording instead.'
         : (err && err.message) || 'Could not start the microphone.';
-      status(msg, true);
+      setStatus(msg, true);
     }
   });
   $('#file-input').addEventListener('change', async (e) => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
     try {
-      status(`Analysing ${f.name}…`);
+      setStatus(`Analysing ${f.name}…`);
+      resetDisplay();
       const rep = await E.loadFile(f);
-      status(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Try raising Sensitivity, then load the file again.');
+      setStatus(rep.summary.count ? `Found ${rep.summary.count} key presses in ${rep.duration.toFixed(1)} s. Press Play to watch it live.` : 'No key presses found. Raise Sensitivity, then load the file again.');
     } catch (err) {
-      status('Could not read that file. Try a .wav, .mp3, .m4a or .ogg recording.', true);
+      setStatus('Could not read that file. Try a .wav, .mp3, .m4a or .ogg recording.', true);
       console.error(err);
     }
     e.target.value = '';
   });
   $('#btn-play').addEventListener('click', () => {
     if (E.state === 'file-playing') E.pauseFile();
-    else { clearSpectrogram(); E.playFile(); }
+    else { if (E.state === 'mic') E.stop(); resetDisplay(); E.playFile(); }
   });
-  $('#btn-stop').addEventListener('click', () => { E.stop(); if (E.file) E.file.offset = 0; drawOverview(); });
   $('#sens').addEventListener('input', (e) => E.setSensitivity(parseFloat(e.target.value)));
   $('#btn-reset').addEventListener('click', () => {
-    E.resetSession(); liveHits = 0; $('#st-count').textContent = '0';
-    renderReport(null); clearSpectrogram();
-    $('#prof-name').textContent = '—'; $('#prof-desc').textContent = C.ui.micHint;
-    $('#meter-needle').classList.remove('is-live');
-    showPeak(0); delete $('.panel-profile').dataset.profile;
+    E.resetSession(); liveHits = 0;
+    renderReport(null); resetDisplay(); clearProfile(); drawLive();
+    setStatus(C.ui.idle);
   });
   $('#btn-pin').addEventListener('click', pinCurrent);
   $('#btn-unpin').addEventListener('click', unpin);
@@ -383,80 +449,124 @@
   $('#cv-overview').addEventListener('click', (e) => {
     if (!E.file) return;
     const r = e.currentTarget.getBoundingClientRect();
-    const t = ((e.clientX - r.left) / r.width) * E.file.report.duration;
-    clearSpectrogram(); E.playFile(t);
+    if (E.state === 'mic') E.stop();
+    resetDisplay();
+    E.playFile(((e.clientX - r.left) / r.width) * E.file.report.duration);
   });
 
-  // ------------------------------------------------------------ Fourier demo
+  // ------------------------------------------------------------ sample key presses (so the page isn't empty)
+  /** Synthesizes ~4 s of thocky typing and runs it through the real analysis. */
+  function showSample() {
+    const sr = 48000, dur = 4, len = sr * dur, d = new Float32Array(len);
+    let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (let i = 0; i < len; i++) d[i] = rnd() * 0.0006;
+    const press = (t0, a, low, body) => {
+      const s0 = Math.floor(t0 * sr);
+      for (let i = 0; i < sr * 0.16 && s0 + i < len; i++) {
+        const t = i / sr;
+        d[s0 + i] += a * (Math.exp(-t / 0.014) * (Math.sin(2 * Math.PI * low * t) + 0.55 * Math.sin(2 * Math.PI * body * t) + 0.2 * Math.sin(2 * Math.PI * 3800 * t))
+          + 0.25 * rnd() * Math.exp(-t / 0.0015));
+      }
+    };
+    let t = 0.3;
+    while (t < dur - 0.25) {
+      const low = 230 + rnd() * 25;
+      press(t, 0.35 + rnd() * 0.06, low, low * 4.6);           // key going down
+      press(t + 0.1, 0.12, low * 1.3, low * 5.5);                 // smaller one coming back up
+      t += 0.45 + Math.abs(rnd()) * 0.3;
+    }
+    const buf = { sampleRate: sr, length: len, numberOfChannels: 1, duration: dur, getChannelData: () => d };
+    const rep = E.analyzeBuffer(buf);
+
+    // Replay it through the same drawing pipeline, ending "now".
+    const axis = F.logAxis(40, 16000, E.DISPLAY_BINS), N = 4096, step = Math.round(sr / 60), end = nowS();
+    const frames = [];
+    for (let s = N; s <= len; s += step) frames.push([s, F.toLogBins(F.magnitudes(d.subarray(s - N, s), F.hann(N)), sr / N, axis)]);
+    // settle the auto-range on the whole sample first, so the oldest columns are scaled right
+    for (const [, b] of frames) { const bars = toBars(b); topDb = Math.max(topDb, ...bars); noiseDb = Math.min(noiseDb == null ? 0 : noiseDb, Array.from(bars).sort((x, y) => x - y)[NB >> 1]); }
+    for (const [s, b] of frames) ingest(end - (len - s) / sr, b, 1 / 60);
+    pushWave(d.subarray(len - Math.ceil(sr * (WAVE_WIN + 0.1))), end - (WAVE_WIN + 0.1), sr);
+    viewT = end;
+    if (rep.hits.length) {
+      const hit = rep.hits[rep.hits.length - 1];
+      showProfile(hit);
+      holdDb.set(toBars(hit.binsDb)); topDb = Math.max(...holdDb);
+    }
+    setStatus(C.ui.sample);
+  }
+
+  // ------------------------------------------------------------ Fourier smoothie demo
   const fruits = [
-    { name: 'Strawberry', role: 'low thump', hz: 150, amp: 1 },
-    { name: 'Banana', role: 'middle body', hz: 500, amp: 0.6 },
-    { name: 'Blueberry', role: 'high click', hz: 1400, amp: 0.35 },
+    { name: 'Banana', role: 'low thump', hz: 150, amp: 1 },
+    { name: 'Strawberry', role: 'middle body', hz: 500, amp: 0.55 },
+    { name: 'Blueberry', role: 'high click', hz: 1400, amp: 0.3 },
   ];
   function renderDemoControls() {
     const box = $('#demo-controls');
     fruits.forEach((f, i) => {
       const lab = el('label', 'fruit');
-      const dot = el('span', 'fruit-dot'); dot.style.background = col.fruits[i];
+      const dot = el('span', 'fruit-dot'); dot.style.background = col.fruits[i]; dot.style.boxShadow = `0 0 8px ${col.fruits[i]}`;
       const range = el('input'); range.type = 'range'; range.min = 0; range.max = 1; range.step = 0.05; range.value = f.amp;
       range.setAttribute('aria-label', `${f.name} amount`);
       range.addEventListener('input', () => { f.amp = parseFloat(range.value); drawDemo(); });
-      lab.append(dot, el('span', null, `${f.name} — ${f.hz} Hz (${f.role})`), range);
+      lab.append(dot, el('span', null, `${f.name} · ${f.hz} Hz (${f.role})`), range);
       box.appendChild(lab);
     });
   }
   function drawDemo() {
     const mix = E.demoMix(fruits.map((f) => ({ hz: f.hz, amp: f.amp })), { waveMs: 20 });
-    const cw = canvas('cv-demo-wave'); fit(cw);
-    drawWave(cw, null);
-    fruits.forEach((f, i) => {
-      if (!f.amp) return;
-      const one = E.demoMix([{ hz: f.hz, amp: f.amp }], { waveMs: 20 }).wave;
-      drawWave(cw, one, col.fruits[i], { keep: true, gain: 0.33, width: 1.5, alpha: 0.6 });
-    });
-    drawWave(cw, mix.wave, col.wave, { keep: true, gain: 0.33, width: 2.5 });
+    const cw = $('#cv-demo-wave'); const g = ctxFor(cw), W = cw.width, H = cw.height, mid = H / 2, amp = H * 0.42 / 1.9;
+    g.strokeStyle = col.edge; g.lineWidth = 1.5 * DPR; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+    const line = (wave, color, width, alpha, glow) => {
+      g.save(); g.globalAlpha = alpha; g.strokeStyle = g.shadowColor = color; g.shadowBlur = glow ? 10 * DPR : 0; g.lineWidth = width * DPR; g.lineJoin = 'round';
+      g.beginPath();
+      for (let i = 0; i < wave.length; i++) { const x = (i / (wave.length - 1)) * W, y = mid - wave[i] * amp; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.stroke(); g.restore();
+    };
+    fruits.forEach((f, i) => { if (f.amp) line(E.demoMix([{ hz: f.hz, amp: f.amp }], { waveMs: 20 }).wave, col.fruits[i], 1.5, 0.75, false); });
+    line(mix.wave, col.chalk, 3, 1, true);
 
-    const cs = canvas('cv-demo-spec'); fit(cs);
-    const { ctx, w, h } = cs, maxHz = 2000;
-    ctx.fillStyle = col.bg; ctx.fillRect(0, 0, w, h);
-    ctx.font = `600 10px ${col.font}`; ctx.textAlign = 'center';
-    ctx.strokeStyle = col.grid; ctx.fillStyle = col.text;
-    for (let t = 0; t <= maxHz; t += 250) { const x = (t / maxHz) * w; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 14); ctx.stroke(); if (t % 500 === 0) { ctx.textAlign = t === 0 ? 'left' : t === maxHz ? 'right' : 'center'; ctx.fillText(t + (t ? '' : ' Hz'), x, h - 3); } }
-    const spec = mix.spectrum, n = Math.floor(maxHz / mix.binHz);
+    const cs = $('#cv-demo-spec'); const q = ctxFor(cs), SW = cs.width, SH = cs.height, maxHz = 2000, padB = 18 * DPR;
+    q.font = font(11); q.textBaseline = 'bottom';
+    q.strokeStyle = col.grid; q.lineWidth = DPR; q.setLineDash([4 * DPR, 4 * DPR]);
+    for (let f = 250; f < maxHz; f += 250) { const x = Math.round((f / maxHz) * SW) + 0.5; q.beginPath(); q.moveTo(x, 0); q.lineTo(x, SH - padB); q.stroke(); }
+    q.setLineDash([]);
+    q.fillStyle = col.dim;
+    [0, 500, 1000, 1500, 2000].forEach((f) => { q.textAlign = f === 0 ? 'left' : f === maxHz ? 'right' : 'center'; q.fillText(f ? f + (f === maxHz ? ' Hz' : '') : '0', (f / maxHz) * SW + (f === 0 ? 3 * DPR : f === maxHz ? -3 * DPR : 0), SH - 3 * DPR); });
+    const spec = mix.spectrum, n = Math.floor(maxHz / mix.binHz), bw = Math.max(3 * DPR, SW / n * 0.9);
     for (let k = 1; k < n; k++) {
       const hz = k * mix.binHz;
+      const bh = Math.min(1, spec[k]) * (SH - padB - 8 * DPR);
+      if (bh < 1) continue;
       let ci = -1; fruits.forEach((f, i) => { if (Math.abs(f.hz - hz) < 40) ci = i; });
-      ctx.fillStyle = ci >= 0 ? col.fruits[ci] : col.bar;
-      const bh = Math.min(1, spec[k]) * (h - 22);
-      ctx.fillRect((hz / maxHz) * w - 1.5, h - 14 - bh, 3, bh);
+      q.fillStyle = q.shadowColor = ci >= 0 ? col.fruits[ci] : col.violet; q.shadowBlur = 10 * DPR;
+      q.fillRect((hz / maxHz) * SW - bw / 2, SH - padB - bh, bw, bh);
     }
+    q.shadowBlur = 0;
   }
 
   // ------------------------------------------------------------ static content
   function renderContent() {
     document.querySelectorAll('[data-text]').forEach((n) => {
-      const key = n.getAttribute('data-text').split('.');
-      let v = C; for (const k of key) v = v && v[k];
+      let v = C; for (const k of n.getAttribute('data-text').split('.')) v = v && v[k];
       if (typeof v === 'string') n.textContent = v;
     });
-    document.querySelectorAll('[data-lesson]').forEach((n) => {
-      const l = C.lessons.find((x) => x.id === n.getAttribute('data-lesson'));
-      if (l) n.textContent = l.short;
-    });
+
+    // zone legend widths follow the real zone boundaries on the chart
+    const z = [0, fx(ZONES[0]), fx(ZONES[1]), 1];
+    $('#zones').style.gridTemplateColumns = [0, 1, 2].map((i) => `${((z[i + 1] - z[i]) * 100).toFixed(1)}fr`).join(' ');
 
     const lessons = $('#lessons');
-    C.lessons.forEach((l, i) => {
+    C.lessons.forEach((l) => {
       const card = el('article', 'card lesson');
-      card.appendChild(el('h3', null, `${i + 1}. ${l.title}`));
+      card.appendChild(el('h3', null, l.title));
       card.appendChild(el('p', 'short', l.short));
       const d = el('details'); d.appendChild(el('summary', null, 'Tell me more')); d.appendChild(el('p', null, l.body));
       card.appendChild(d);
       lessons.appendChild(card);
     });
 
-    const filters = [
-      ['all', 'All'], ['thock', 'Thock'], ['clack', 'Clack'], ['creamy', 'Creamy'], ['quiet', 'Quiet'], ['fix', 'Fix a problem'], ['budget', 'Cheap mods'],
-    ];
+    const filters = [['all', 'All'], ['thock', 'Thock'], ['clack', 'Clack'], ['creamy', 'Creamy'], ['quiet', 'Quiet'], ['fix', 'Fix a problem'], ['budget', 'Cheap mods']];
     const chipBox = $('#recipe-filters');
     filters.forEach(([tag, label], i) => {
       const b = el('button', 'chip' + (i === 0 ? ' is-active' : ''), label); b.type = 'button'; b.dataset.tag = tag;
@@ -471,20 +581,19 @@
     const partName = (id) => (C.parts.find((p) => p.id === id) || { name: id }).name;
     const list = $('#recipe-list');
     C.recipes.forEach((r) => {
-      const card = el('article', 'card recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = r.tags.join(' ');
-      card.appendChild(el('h3', null, r.goal));
-      card.appendChild(el('p', 'recipe-want', `"${r.want}"`));
-      card.appendChild(el('p', 'recipe-meta', `Cost: ${'$'.repeat(r.cost)} · Effort: ${['', 'Easy', 'Medium', 'Big project'][r.effort]}`));
-      const ol = el('ol', 'recipe-steps');
+      const card = el('article', 'recipe'); card.id = 'recipe-' + r.id; card.dataset.tags = r.tags.join(' ');
+      card.appendChild(el('h3', 'recipe-goal', r.want.replace(/^I want (my keyboard )?/, 'I want ').replace(/\.$/, '')));
+      const ul = el('ul', 'recipe-steps');
       r.steps.forEach((s) => {
         const li = el('li');
-        li.appendChild(el('span', 'part-tag', partName(s.part)));
+        li.appendChild(el('b', null, partName(s.part)));
         li.appendChild(document.createTextNode(s.do));
-        li.appendChild(el('span', 'why', 'Why: ' + s.why));
-        ol.appendChild(li);
+        li.appendChild(el('span', 'why', s.why));
+        ul.appendChild(li);
       });
-      card.appendChild(ol);
+      card.appendChild(ul);
       card.appendChild(el('p', 'recipe-graph', 'On the graph: ' + r.graph));
+      card.appendChild(el('p', 'recipe-meta', `Cost ${'$'.repeat(r.cost)} · ${['', 'Easy', 'Medium', 'Big project'][r.effort]}`));
       list.appendChild(card);
     });
 
@@ -494,45 +603,43 @@
       card.appendChild(el('h3', null, p.name));
       card.appendChild(el('p', 'short', p.what));
       card.appendChild(el('p', null, p.sound));
-      card.appendChild(el('p', 'part-tip', 'Tip: ' + p.tip));
+      card.appendChild(el('p', 'dim', 'Tip: ' + p.tip));
       parts.appendChild(card);
     });
 
     const tips = $('#tips'); C.recordingTips.forEach((t) => tips.appendChild(el('li', null, t)));
-    const gl = $('#glossary'); C.glossary.forEach((g) => { gl.appendChild(el('dt', null, g.term)); gl.appendChild(el('dd', null, g.def)); });
+    const gl = $('#glossary'); C.glossary.forEach((x) => { gl.appendChild(el('dt', null, x.term)); gl.appendChild(el('dd', null, x.def)); });
   }
 
   function showRecipe(id) {
-    document.querySelector('#recipe-filters .chip[data-tag="all"]').click();
+    $('#recipe-filters .chip[data-tag="all"]').click();
     const card = document.getElementById('recipe-' + id); if (!card) return;
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     card.classList.add('is-highlight'); setTimeout(() => card.classList.remove('is-highlight'), 2500);
   }
 
-  // ------------------------------------------------------------ idle drawing + resize
-  function drawIdle() {
-    drawWave(canvas('cv-wave'), null);
-    drawSpectrum(canvas('cv-spectrum'), E.summarize([]).binsHz, null, null);
-    clearSpectrogram();
-    drawWave(canvas('cv-hit'), null);
-    drawReportCurve(currentSummary);
-    drawOverview();
-    drawDemo();
+  // ------------------------------------------------------------ redraw on resize / font load
+  function redrawStatic() {
+    if (E.state === 'mic' || E.state === 'file-playing') { renderReport(currentSummary); drawDemo(); return; }
+    drawLive(); drawOverview(); drawDemo(); renderReport(currentSummary);
   }
-  let resizeTimer;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { Object.values(canvases).forEach(fit); if (E.state === 'idle' || E.state === 'file-paused') drawIdle(); else { drawReportCurve(currentSummary); drawDemo(); } }, 120);
-  });
-  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); drawIdle(); });
+  let rt;
+  const onResize = () => { clearTimeout(rt); rt = setTimeout(redrawStatic, 80); };
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(onResize);
+    document.querySelectorAll('.chart canvas').forEach((c) => ro.observe(c));
+  } else window.addEventListener('resize', onResize);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawStatic);
 
+  // ------------------------------------------------------------ start
   readColors();
   renderContent();
   renderDemoControls();
-  setButtons('idle');
-  drawIdle();
-  if (!(window.AudioContext || window.webkitAudioContext)) status('This browser can\'t do live audio. Try Chrome, Edge, Firefox or Safari.', true);
+  renderReport(null);
+  try { showSample(); } catch (e) { console.error(e); clearProfile(); setStatus(C.ui.idle); }
+  drawLive();
+  drawDemo();
+  if (!(window.AudioContext || window.webkitAudioContext)) setStatus('This browser can\'t do live audio. Try Chrome, Edge, Firefox or Safari.', true);
 
-  // Small hook for themes / tests.
-  window.ThockUI = { readColors, redraw: drawIdle, showRecipe, renderReport };
+  window.ThockUI = { readColors, redraw: redrawStatic, showRecipe, renderReport };
 })();

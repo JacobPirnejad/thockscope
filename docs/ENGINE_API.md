@@ -33,6 +33,7 @@ E.state                        // 'idle' | 'mic' | 'file-playing' | 'file-paused
 E.on('state', (state) => {});        // state changed
 E.on('frame', (frame) => {});        // ~60x per second while mic/file is running
 E.on('keystroke', (hit) => {});      // a key press was detected and analysed (live)
+E.on('samples', ({data, sampleRate}) => {}); // every raw audio block, gap-free (array reused: copy to keep)
 E.on('file', (report) => {});        // a file finished loading + analysing
 E.on('ended', () => {});             // file playback finished
 E.on('session-reset', () => {});
