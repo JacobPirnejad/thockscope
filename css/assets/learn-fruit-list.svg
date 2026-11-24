@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 110" fill="none" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Step 3: the fruit list = the spectrum (strawberry low, banana mid, blueberry high, matching the app demo) -->
+  <rect x="26" y="40" width="40" height="56" fill="#FF2E97" stroke="#000" stroke-width="3"/>
+  <rect x="80" y="62" width="40" height="34" fill="#9D5CFF" stroke="#000" stroke-width="3"/>
+  <rect x="134" y="76" width="40" height="20" fill="#29F0FF" stroke="#000" stroke-width="3"/>
+  <path d="M34 14 Q46 6 58 14 Q56 28 46 34 Q36 28 34 14 Z" fill="#FF2E97" stroke="#000" stroke-width="3"/>
+  <path d="M84 56 Q88 34 108 32 Q104 38 105 44 Q104 56 88 60 Z" fill="#F3D36B" stroke="#000" stroke-width="3"/>
+  <circle cx="154" cy="66" r="8" fill="#29F0FF" stroke="#000" stroke-width="3"/>
+  <path d="M18 96 H184" stroke="#8E93B4" stroke-width="3"/>
+</svg>

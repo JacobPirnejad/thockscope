@@ -22,6 +22,9 @@
       hit: v('--c-hit'), fruits: [v('--c-fruit-1'), v('--c-fruit-2'), v('--c-fruit-3')],
       spec: [v('--spec-0'), v('--spec-1'), v('--spec-2'), v('--spec-3'), v('--spec-4')],
       font: v('--font') || 'sans-serif',
+      // optional per-zone bar colors + neon glow (fall back to the single bar color / no glow)
+      barLow: v('--c-bar-low'), barMid: v('--c-bar-mid'), barHigh: v('--c-bar-high'),
+      glow: parseFloat(v('--c-glow')) || 0,
     };
     buildSpecLUT();
   }
@@ -77,15 +80,20 @@
     const y = (db) => 18 + (1 - Math.max(0, Math.min(1, (db - bottom) / (top - bottom)))) * (h - 34);
     drawFreqBackdrop(c, opts.labels !== false);
     if (barsDb) {
-      ctx.fillStyle = col.bar;
+      const zoneColor = (f) => (f < E.BANDS[0].to ? col.barLow : f < E.BANDS[1].to ? col.barMid : col.barHigh) || col.bar;
       const n = hz.length, bw = w / n;
+      ctx.save();
+      ctx.shadowBlur = col.glow;
       for (let i = 0; i < n; i++) {
         const x = xOfHz(hz[i], w) - bw / 2, yy = y(barsDb[i]);
+        ctx.fillStyle = ctx.shadowColor = zoneColor(hz[i]);
         ctx.fillRect(x + 0.5, yy, Math.max(1, bw - 1.5), h - 16 - yy);
       }
+      ctx.restore();
     }
     const line = (arr, color, dash, width) => {
       ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.lineJoin = 'round';
+      ctx.shadowColor = color; ctx.shadowBlur = col.glow * 0.7;
       ctx.beginPath();
       for (let i = 0; i < hz.length; i++) { const x = xOfHz(hz[i], w), yy = y(arr[i]); i ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
       ctx.stroke(); ctx.restore();
@@ -109,14 +117,16 @@
     if (!data) return;
     let gain = opts.gain || 1;
     if (opts.autoGain) { let m = 0; for (const v of data) m = Math.max(m, Math.abs(v)); gain = m > 1e-4 ? 0.9 / m : 1; }
-    ctx.strokeStyle = color || col.wave; ctx.lineWidth = opts.width || 2; ctx.globalAlpha = opts.alpha || 1;
+    ctx.save();
+    ctx.strokeStyle = ctx.shadowColor = color || col.wave; ctx.shadowBlur = opts.alpha ? 0 : col.glow * 0.6;
+    ctx.lineWidth = opts.width || 2; ctx.globalAlpha = opts.alpha || 1;
     ctx.beginPath();
     const n = data.length, step = Math.max(1, Math.floor(n / (w * 2)));
     for (let i = 0, j = 0; i < n; i += step, j++) {
       const x = (i / (n - 1)) * w, yy = h / 2 - data[i] * gain * (h / 2 - 4);
       j ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy);
     }
-    ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.stroke(); ctx.restore();
   }
 
   // ------------------------------------------------------------ spectrogram
@@ -174,11 +184,23 @@
   }
 
   // ------------------------------------------------------------ profile card
+  /** Floating "PEAK 248 Hz" tag over the spectrum (hidden when there's no peak). */
+  function showPeak(hz) {
+    const tag = $('#peak-tag'); if (!tag) return;
+    if (!hz) { tag.hidden = true; return; }
+    // keep the tag fully inside the chart near the edges
+    const pct = Math.max(8, Math.min(92, ((Math.log(hz) - LMIN) / (LMAX - LMIN)) * 100));
+    tag.style.setProperty('--peak-x', pct + '%');
+    $('#peak-hz').textContent = Math.round(hz) + ' Hz';
+    tag.hidden = false;
+  }
   function profileText(id) { return C.profiles[id] || { name: '—', text: '' }; }
   function showProfile(f, live) {
     const p = profileText(f.profile);
     $('#prof-name').textContent = p.name;
     $('#prof-desc').textContent = p.soundsLike ? `Sounds like ${p.soundsLike}.` : '';
+    $('.panel-profile').dataset.profile = f.profile;   // lets the theme swap the burst for clacky sounds
+    showPeak(f.peakHz);
     const needle = $('#meter-needle');
     needle.style.left = f.thockScore + '%';
     needle.classList.toggle('is-live', !!live);
@@ -353,6 +375,7 @@
     renderReport(null); clearSpectrogram();
     $('#prof-name').textContent = '—'; $('#prof-desc').textContent = C.ui.micHint;
     $('#meter-needle').classList.remove('is-live');
+    showPeak(0); delete $('.panel-profile').dataset.profile;
   });
   $('#btn-pin').addEventListener('click', pinCurrent);
   $('#btn-unpin').addEventListener('click', unpin);

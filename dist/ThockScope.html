@@ -6,159 +6,366 @@
 <title>ThockScope</title>
 <meta name="description" content="See what your keyboard sounds like: a live frequency analyzer for custom mechanical keyboards.">
 <style>
+@import url("https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;600;700&family=Special+Elite&display=swap");
 /*
- * ThockScope — baseline look. Plain on purpose: the comic-book design replaces this.
- * Canvas colors are read from the --c-* variables below by js/ui.js, so a new
- * theme only needs to redefine these tokens.
+ * ThockScope · NEON NOIR
+ * Night-time detective comic: deep navy pages, panels shaded with diagonal ink hatching,
+ * yellow typewriter caption boxes for titles, neon pink / violet / cyan signals.
+ *
+ * Drop-in replacement for css/app.css. Written against the class names and ids in index.html
+ * and the ones js/ui.js generates. js/ui.js reads the --c-* and --spec-* tokens for canvas colors.
+ * Layout: profile card on the left spanning wave + spectrum; spectrogram full width; one column on phones.
+ * Single committed dark look (no light variant on purpose).
  */
 :root {
-  --bg: #f4f2ee;
-  --panel: #ffffff;
-  --ink: #1b1b1f;
-  --muted: #5d5d66;
-  --line: #d9d6cf;
-  --accent: #e4572e;
-  --accent-ink: #ffffff;
+  /* ---- palette ---- */
+  --noir-night: #0A0C16;      /* page */
+  --noir-panel: #131729;      /* panels */
+  --noir-well: #070912;       /* inside chart frames */
+  --noir-card: #0C0F1D;       /* cards inside sections */
+  --noir-edge: #343B60;       /* panel borders */
+  --noir-ink: #000000;        /* hard shadows, outlines */
+  --noir-chalk: #ECE9F5;      /* main text */
+  --noir-dim: #8E93B4;        /* secondary text */
+  --noir-pink: #FF2E97;       /* LOW / thock, primary action */
+  --noir-violet: #9D5CFF;     /* MID / body */
+  --noir-cyan: #29F0FF;       /* HIGH / clack, data numbers */
+  --noir-caption: #F3D36B;    /* typewriter caption boxes, burst */
+  --noir-caption-ink: #15120A;
 
-  /* visualiser colors (read by ui.js) */
-  --c-bg: #ffffff;
-  --c-grid: #e7e4dd;
-  --c-text: #6b6b74;
-  --c-wave: #1b1b1f;
-  --c-bar: #2e86ab;
-  --c-curve: #e4572e;
-  --c-pin: #8a8a94;
-  --c-low: rgba(46, 134, 171, 0.10);
-  --c-mid: rgba(240, 200, 8, 0.12);
-  --c-high: rgba(228, 87, 46, 0.10);
-  --c-hit: #e4572e;
-  --c-fruit-1: #e63946;
-  --c-fruit-2: #e9c46a;
-  --c-fruit-3: #457b9d;
-  --spec-0: #ffffff;
-  --spec-1: #a8dadc;
-  --spec-2: #457b9d;
-  --spec-3: #e4572e;
-  --spec-4: #1b1b1f;
+  /* ---- type ---- */
+  --font-display: "Anton", Impact, "Arial Narrow", sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-type: "Special Elite", "Courier New", monospace;
 
-  --radius: 10px;
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* ---- shape ---- */
+  --gutter: 18px;
+  --shadow: 6px 6px 0 var(--noir-ink);
+  --hatch: repeating-linear-gradient(135deg, rgba(0,0,0,.55) 0 2px, transparent 2px 6px);
+  --glow-pink: 0 0 18px rgba(255,46,151,.55);
+  --glow-cyan: 0 0 18px rgba(41,240,255,.5);
+
+  /* ---- tokens js/ui.js already reads (canvas colors) ---- */
+  --bg: var(--noir-night);
+  --panel: var(--noir-panel);
+  --ink: var(--noir-chalk);
+  --muted: var(--noir-dim);
+  --line: var(--noir-edge);
+  --accent: var(--noir-pink);
+  --accent-ink: var(--noir-night);
+  --font: "Barlow", system-ui, sans-serif;          /* canvas label font */
+  --c-bg: #070912;
+  --c-grid: #262B45;
+  --c-text: #8E93B4;
+  --c-wave: #29F0FF;
+  --c-bar: #9D5CFF;                                 /* single bar color today; see per-zone tokens below */
+  --c-curve: #ECE9F5;
+  --c-pin: #F3D36B;                                 /* the dashed "Before" curve */
+  --c-low: rgba(255, 46, 151, 0.10);
+  --c-mid: rgba(157, 92, 255, 0.10);
+  --c-high: rgba(41, 240, 255, 0.08);
+  --c-hit: #FF2E97;
+  --c-fruit-1: #FF2E97;                             /* strawberry, low */
+  --c-fruit-2: #F3D36B;                             /* banana, mid */
+  --c-fruit-3: #29F0FF;                             /* blueberry, high */
+  --spec-0: #070912;
+  --spec-1: #2A1F5C;
+  --spec-2: #7B3FD6;
+  --spec-3: #FF2E97;
+  --spec-4: #FFD1EC;
+  /* optional, for the ui.js upgrade described in HANDOFF.md */
+  --c-bar-low: #FF2E97;
+  --c-bar-mid: #9D5CFF;
+  --c-bar-high: #29F0FF;
+  --c-glow: 12;                                     /* canvas shadowBlur in px */
+
+  --radius: 0px;
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #15161a; --panel: #1f2026; --ink: #ececf1; --muted: #a2a2ad; --line: #34353d;
-    --c-bg: #1f2026; --c-grid: #2c2d34; --c-text: #9a9aa5; --c-wave: #ececf1; --c-pin: #7a7a85;
-    --spec-0: #1f2026; --spec-1: #1d4e5f; --spec-2: #2e86ab; --spec-3: #f0a35e; --spec-4: #fff6d6;
-  }
+
+/* ================================================================ base */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background-color: var(--noir-night);
+  background-image: repeating-linear-gradient(105deg, rgba(41,240,255,.035) 0 1px, transparent 1px 16px);
+  color: var(--noir-chalk);
+  font: 16px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
+.app-header, .app-main, .app-footer { max-width: 1240px; margin-left: auto; margin-right: auto; }
+a { color: var(--noir-cyan); }
+:focus-visible { outline: 3px solid var(--noir-cyan); outline-offset: 3px; }
+[hidden] { display: none !important; }
 
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); padding-inline: 16px; }
-.app-header, .app-main, .app-footer { max-width: 1200px; margin: 0 auto; }
+/* ================================================================ header */
+.app-header {
+  position: relative; margin-top: 20px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;
+  padding: 34px 22px 18px;
+  background-color: #0E1120;
+  background-image: repeating-linear-gradient(110deg, rgba(255,46,151,.08) 0 2px, transparent 2px 22px);
+  border: 2px solid var(--noir-edge); box-shadow: var(--shadow);
+}
+/* narration caption: pure CSS, no markup needed */
+.app-header::before {
+  content: "Meanwhile, at the keyboard\2026";
+  position: absolute; top: -2px; left: -2px;
+  background: var(--noir-caption); color: var(--noir-caption-ink);
+  font: .85rem/1.4 var(--font-type); padding: 4px 12px;
+  border-right: 2px solid var(--noir-ink); border-bottom: 2px solid var(--noir-ink);
+}
+.brand { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding-left: 70px; position: relative; }
+.brand::before { /* neon keycap logo */
+  content: ""; position: absolute; left: 0; top: 50%; width: 56px; height: 56px; transform: translateY(-50%);
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20ThockScope%20mark%3A%20neon%20keycap%20with%20a%20sound%20wave%20--%3E%0A%20%20%3Cpath%20d%3D%22M6%2022%20L14%208%20H50%20L58%2022%20V50%20Q58%2056%2052%2056%20H12%20Q6%2056%206%2050%20Z%22%20fill%3D%22%231B2038%22%20stroke%3D%22%2329F0FF%22%20stroke-width%3D%222.5%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M15%2012%20H49%20L53%2034%20Q53%2040%2047%2040%20H17%20Q11%2040%2011%2034%20Z%22%20fill%3D%22%230A0C16%22%20stroke%3D%22%2329F0FF%22%20stroke-width%3D%222.5%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M18%2026%20Q21%2018%2024%2026%20T30%2026%20T36%2026%20Q39%2020%2042%2026%20T47%2026%22%20stroke%3D%22%23FF2E97%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 8px rgba(41,240,255,.6));
+}
+.brand-title {
+  margin: 0; font-family: var(--font-display); font-weight: 400; line-height: 1;
+  font-size: clamp(2.6rem, 7vw, 4.6rem); letter-spacing: .02em; text-transform: uppercase;
+  color: var(--noir-chalk); text-shadow: 3px 3px 0 var(--noir-pink), 0 0 22px rgba(255,46,151,.55);
+}
+.brand-tagline { margin: 0; color: var(--noir-cyan); font-weight: 600; font-size: .9rem; letter-spacing: .06em; text-transform: uppercase; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; }
+.status { flex-basis: 100%; margin: 0; min-height: 1.5em; color: var(--noir-dim); font-size: .92rem; display: flex; align-items: center; gap: 8px; }
+.status::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--noir-pink); box-shadow: 0 0 8px var(--noir-pink); flex: none; }
+.status:empty::before { display: none; }
+.status.error { color: var(--noir-pink); font-weight: 700; }
 
-.app-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-block: 20px 8px; }
-.brand-title { margin: 0; font-size: 1.8rem; letter-spacing: -0.02em; }
-.brand-tagline { margin: 0; color: var(--muted); }
-.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
-.status { flex-basis: 100%; margin: 0; min-height: 1.5em; color: var(--muted); font-size: 0.9rem; }
-.status.error { color: var(--accent); font-weight: 600; }
+/* ================================================================ buttons & inputs */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+  font: 400 1.15rem/1.1 var(--font-display); letter-spacing: .06em; text-transform: uppercase;
+  padding: 11px 18px; border: 2px solid currentColor; border-radius: 0;
+  background: transparent; color: var(--noir-cyan);
+  transition: box-shadow .15s, transform .08s, background-color .15s;
+}
+.btn:hover:not(:disabled) { box-shadow: var(--glow-cyan); }
+.btn:active:not(:disabled) { transform: translate(2px, 2px); }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn-primary { background: var(--noir-pink); border-color: var(--noir-pink); color: var(--noir-night); box-shadow: var(--glow-pink); }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 0 28px rgba(255,46,151,.85); }
+.btn-primary.is-on { background: var(--noir-cyan); border-color: var(--noir-cyan); box-shadow: 0 0 22px rgba(41,240,255,.7); }
+.btn-file { color: var(--noir-cyan); }
+.btn-file:focus-within { outline: 3px solid var(--noir-cyan); outline-offset: 3px; }
+.btn-small { font-size: .9rem; padding: 6px 12px; }
+.sens { display: inline-flex; align-items: center; gap: 8px; font-size: .85rem; font-weight: 600; color: var(--noir-dim); text-transform: uppercase; letter-spacing: .06em; }
+input[type="range"] { accent-color: var(--noir-cyan); }
 
-.btn { font: inherit; font-weight: 600; border: 1.5px solid var(--ink); background: var(--panel); color: var(--ink); padding: 8px 14px; border-radius: 999px; cursor: pointer; }
-.btn:hover:not(:disabled) { transform: translateY(-1px); }
-.btn:disabled { opacity: 0.4; cursor: default; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.btn-primary.is-on { background: var(--ink); border-color: var(--ink); color: var(--panel); }
-.btn-small { padding: 4px 10px; font-size: 0.85rem; }
-.sens { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+/* ================================================================ panels (comic panels) */
+.panel {
+  position: relative; min-width: 0; overflow: hidden;
+  background-color: var(--noir-panel); border: 2px solid var(--noir-edge); border-radius: 0;
+  box-shadow: var(--shadow); padding: 0 18px 18px;
+}
+.panel::before { /* cel shadow drawn with ink hatching in the lower-right corner */
+  content: ""; position: absolute; inset: 0; pointer-events: none; background-image: var(--hatch);
+  -webkit-mask-image: linear-gradient(200deg, transparent 62%, #000 100%); mask-image: linear-gradient(200deg, transparent 62%, #000 100%);
+}
+.panel > * { position: relative; }
+/* titles are typewriter caption boxes tucked into the top-left corner of the panel */
+.panel-title {
+  display: inline-block; margin: 0 0 10px -18px; padding: 8px 14px 6px 18px;
+  background: var(--noir-caption); color: var(--noir-caption-ink);
+  font: 400 1rem/1.3 var(--font-type); letter-spacing: .04em; text-transform: uppercase;
+  border-right: 2px solid var(--noir-ink); border-bottom: 2px solid var(--noir-ink);
+}
+.panel-note { margin: 10px 0 0; color: var(--noir-dim); font-size: .95rem; max-width: 65ch; }
 
-.viz-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; min-width: 0; }
-.panel-title { margin: 0 0 8px; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-.panel-note { margin: 8px 0 0; color: var(--muted); font-size: 0.85rem; }
-.panel-spectrum .viz-tall { height: 160px; }
-.panel-file, .panel-report { margin-top: 16px; }
+/* ================================================================ visualizer grid */
+.viz-grid {
+  display: grid; gap: var(--gutter); margin-top: var(--gutter);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-areas: "profile wave" "profile spectrum" "spectro spectro";
+}
+.panel-wave { grid-area: wave; }
+.panel-spectrum { grid-area: spectrum; }
+.panel-spectrogram { grid-area: spectro; }
+.panel-profile { grid-area: profile; }
+.panel-file, .panel-report { margin-top: var(--gutter); }
 
-.viz { display: block; width: 100%; height: 160px; border-radius: 6px; background: var(--c-bg); }
+.viz { display: block; width: 100%; height: 160px; background: var(--c-bg); border: 2px solid var(--noir-edge); border-radius: 0; }
 .viz-tall { height: 300px; }
 .viz-small { height: 110px; }
 #cv-overview { cursor: pointer; }
 
-.meter { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.8rem; }
-.meter-track { position: relative; flex: 1; height: 14px; border-radius: 999px; background: linear-gradient(90deg, var(--c-curve), var(--c-mid), var(--c-bar)); }
-.meter-needle { position: absolute; top: -5px; left: 50%; width: 6px; height: 24px; margin-left: -3px; background: var(--ink); border-radius: 3px; transition: left 0.25s ease-out; opacity: 0.25; }
-.meter-needle.is-live { opacity: 1; }
-.profile-name { margin: 10px 0 0; font-size: 1.6rem; font-weight: 800; }
-.profile-desc { margin: 0 0 8px; color: var(--muted); }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 10px; }
-.stats div { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
-.stats dt { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); }
-.stats dd { margin: 0; font-weight: 700; }
-.hit-flash { animation: flash 0.25s ease-out; }
-@keyframes flash { from { background: var(--c-mid); } to { background: var(--panel); } }
-
-.report-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.report-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.report-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; }
-.report-headline { font-size: 1.15rem; font-weight: 700; margin: 0 0 6px; }
-.report-compare { margin: 0 0 8px; font-weight: 600; }
-.bands { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin-bottom: 10px; font-size: 0.7rem; font-weight: 700; }
-.bands span { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
-.band-low { background: var(--c-bar); color: #fff; }
-.band-mid { background: var(--c-fruit-2); color: #1b1b1f; }
-.band-high { background: var(--c-curve); color: #fff; }
-.diagnosis-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
-.diagnosis-list li { border-left: 4px solid var(--c-bar); padding: 4px 10px; background: var(--bg); border-radius: 0 6px 6px 0; }
-.diagnosis-list li.warn { border-color: var(--accent); }
-.diagnosis-list li.info { border-color: var(--muted); }
-.diagnosis-list strong { display: block; }
-.recipe-link { font: inherit; font-size: 0.85rem; background: none; border: 0; padding: 0; margin-right: 10px; color: var(--accent); text-decoration: underline; cursor: pointer; }
-
-.section { margin-top: 40px; }
-.section-title { font-size: 1.4rem; margin: 0 0 8px; }
-.section-intro { margin: 0 0 12px; color: var(--muted); }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
-.card h3 { margin: 0 0 4px; font-size: 1.05rem; }
-.card p { margin: 0 0 6px; }
-.card .short { font-weight: 600; }
-.card details summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
-.card.is-highlight { outline: 3px solid var(--accent); }
-
-.demo { margin-bottom: 16px; }
-.demo-intro { margin: 0 0 10px; color: var(--muted); }
-.demo-controls { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-bottom: 10px; }
-.fruit { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
-.fruit-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-#cv-demo-wave { margin-bottom: 8px; }
-
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.chip { font: inherit; font-size: 0.85rem; border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); padding: 4px 12px; border-radius: 999px; cursor: pointer; }
-.chip.is-active { background: var(--ink); color: var(--panel); border-color: var(--ink); }
-.recipe-want { color: var(--muted); font-style: italic; }
-.recipe-meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
-.recipe-steps { margin: 6px 0; padding-left: 18px; }
-.recipe-steps li { margin-bottom: 4px; }
-.recipe-steps .part-tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--c-bar); margin-right: 4px; }
-.recipe-steps .why { display: block; font-size: 0.85rem; color: var(--muted); }
-.recipe-graph { font-size: 0.85rem; background: var(--bg); padding: 6px 8px; border-radius: 6px; }
-.part-tip { font-size: 0.85rem; color: var(--muted); }
-
-.tips { padding-left: 18px; }
-.glossary { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
-.glossary dt { font-weight: 700; }
-.glossary dd { margin: 0; color: var(--muted); }
-
-.app-footer { padding-block: 40px; color: var(--muted); font-size: 0.85rem; text-align: center; }
-
-@media (max-width: 760px) {
-  .viz-grid, .report-body { grid-template-columns: minmax(0, 1fr); }
-  .panel-spectrum { grid-row: auto; }
-  .viz-tall { height: 220px; }
-  .stats { grid-template-columns: repeat(2, 1fr); }
-  .controls { margin-left: 0; }
-  .glossary { grid-template-columns: 1fr; }
-  .glossary dd { margin-bottom: 6px; }
+/* ================================================================ sound profile card */
+.meter { display: flex; align-items: center; gap: 10px; margin: 4px 0 6px; }
+.meter-end { font: 400 1.05rem/1 var(--font-display); letter-spacing: .08em; }
+.meter-left { color: var(--noir-cyan); text-shadow: 0 0 10px rgba(41,240,255,.6); }   /* CLACK */
+.meter-right { color: var(--noir-pink); text-shadow: 0 0 10px rgba(255,46,151,.6); }  /* THOCK */
+.meter-track {
+  position: relative; flex: 1; height: 22px; border: 2px solid var(--noir-edge); border-radius: 11px;
+  background: linear-gradient(90deg, var(--noir-cyan), var(--noir-violet) 50%, var(--noir-pink));
+  box-shadow: inset 0 0 0 3px var(--noir-well);
 }
+.meter-needle {
+  position: absolute; top: -9px; left: 50%; width: 8px; height: 36px; margin-left: -4px; border-radius: 4px;
+  background: var(--noir-chalk); border: 2px solid var(--noir-ink); opacity: .35;
+  transition: left .25s ease-out, opacity .2s;
+}
+.meter-needle.is-live { opacity: 1; box-shadow: 0 0 12px var(--noir-chalk); }
+/* profile name sits inside the comic starburst */
+.profile-name {
+  display: grid; place-items: center; margin: 10px auto 4px; width: min(100%, 300px); aspect-ratio: 200 / 120;
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20120%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Neon%20Noir%20starburst%3A%20caption%20yellow%2C%20ink%20outline.%20Used%20as%20the%20background%20of%20.profile-name%20--%3E%0A%20%20%3Cpolygon%20points%3D%22100.0%2C2.0%20112.5%2C20.6%20135.2%2C2.8%20136.0%2C25.4%20161.1%2C16.9%20155.2%2C34.3%20174.7%2C34.5%20167.7%2C46.3%20196.5%2C49.9%20172.0%2C60.0%20201.3%2C70.6%20167.7%2C73.7%20182.3%2C88.1%20155.2%2C85.7%20155.4%2C99.1%20136.0%2C94.6%20133.5%2C114.5%20112.5%2C99.4%20100.0%2C120.9%2087.5%2C99.4%2067.5%2C112.9%2064.0%2C94.6%2044.6%2C99.1%2044.8%2C85.7%2015.1%2C89.0%2032.3%2C73.7%20-1.3%2C70.6%2028.0%2C60.0%206.4%2C50.2%2032.3%2C46.3%2025.3%2C34.5%2044.8%2C34.3%2037.0%2C15.6%2064.0%2C25.4%2064.8%2C2.8%2087.5%2C20.6%22%20fill%3D%22%23F3D36B%22%20stroke%3D%22%23000%22%20stroke-width%3D%224%22%2F%3E%0A%3C%2Fsvg%3E") center / 100% 100% no-repeat;
+  filter: drop-shadow(0 0 14px rgba(243,211,107,.3));
+  font: 400 clamp(1.7rem, 3.4vw, 2.4rem)/1 var(--font-display); letter-spacing: .03em; text-transform: uppercase;
+  color: var(--noir-night); text-align: center; padding: 0 22%;
+}
+/* the "Sounds like ..." line is a speech bubble */
+.profile-desc {
+  position: relative; margin: 18px 0 14px; padding: 10px 16px; border-radius: 20px;
+  background: var(--noir-chalk); color: var(--noir-night); border: 2px solid var(--noir-ink); font-weight: 600;
+}
+.profile-desc::after {
+  content: ""; position: absolute; top: -15px; left: 28px; width: 20px; height: 16px;
+  background: var(--noir-chalk); clip-path: polygon(0 100%, 100% 100%, 20% 0);
+}
+.profile-desc:empty { display: none; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; margin: 0 0 14px; }
+.stats > div { border-left: 3px solid var(--noir-edge); padding: 2px 0 2px 10px; min-width: 0; }
+.stats dt { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--noir-dim); }
+.stats dd {
+  margin: 0; font: 400 1.9rem/1.1 var(--font-display); letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  color: var(--noir-cyan); text-shadow: 0 0 12px rgba(41,240,255,.5); overflow-wrap: anywhere;
+}
+#cv-hit { margin-top: 4px; }
+.hit-flash { animation: noir-flash .3s ease-out; }
+@keyframes noir-flash {
+  from { border-color: var(--noir-pink); box-shadow: var(--shadow), 0 0 26px rgba(255,46,151,.6); }
+  to   { border-color: var(--noir-edge); box-shadow: var(--shadow); }
+}
+
+/* ================================================================ report card */
+.report-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.report-head .panel-title { margin-bottom: 0; }
+.report-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 10px; }
+.report-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--gutter); margin-top: 12px; }
+.report-headline { margin: 0 0 8px; font: 400 1.5rem/1.2 var(--font-display); letter-spacing: .03em; color: var(--noir-chalk); }
+.report-compare { margin: 0 0 10px; font-weight: 700; color: var(--noir-caption); }
+.bands { display: flex; height: 26px; margin-bottom: 12px; border: 2px solid var(--noir-ink); overflow: hidden; font: 400 .8rem/1 var(--font-display); letter-spacing: .06em; }
+.bands span { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; color: var(--noir-night); }
+.band-low { background: var(--noir-pink); }
+.band-mid { background: var(--noir-violet); }
+.band-high { background: var(--noir-cyan); }
+.diagnosis-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.diagnosis-list li { border-left: 4px solid var(--noir-cyan); background: var(--noir-card); padding: 8px 12px; }
+.diagnosis-list li.warn { border-color: var(--noir-pink); }
+.diagnosis-list li.info { border-color: var(--noir-dim); }
+.diagnosis-list strong { display: block; color: var(--noir-chalk); }
+.recipe-link { font: inherit; font-size: .9rem; font-weight: 700; background: none; border: 0; padding: 0; margin-right: 12px; color: var(--noir-cyan); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* ================================================================ sections */
+.section { margin-top: 48px; }
+.section-title {
+  margin: 0 0 10px; font: 400 clamp(1.8rem, 4vw, 2.4rem)/1.1 var(--font-display); letter-spacing: .03em; text-transform: uppercase;
+  color: var(--noir-chalk); text-shadow: 3px 3px 0 var(--noir-pink); text-wrap: balance;
+}
+.section-intro { margin: 0 0 14px; color: var(--noir-dim); max-width: 65ch; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--gutter); }
+.card { position: relative; min-width: 0; background: var(--noir-card); border: 2px solid var(--noir-edge); box-shadow: 4px 4px 0 var(--noir-ink); padding: 14px 16px 16px; }
+.card h3 { margin: 0 0 6px; font: 400 1.25rem/1.2 var(--font-display); letter-spacing: .03em; color: var(--noir-cyan); text-wrap: balance; }
+.card p { margin: 0 0 8px; }
+.card .short { font-weight: 600; color: var(--noir-chalk); }
+.card details summary { cursor: pointer; color: var(--noir-cyan); font-weight: 700; font-size: .92rem; }
+.card details p { margin-top: 8px; color: var(--noir-dim); }
+.card.is-highlight { outline: 3px solid var(--noir-pink); box-shadow: 4px 4px 0 var(--noir-ink), var(--glow-pink); }
+
+/* smoothie demo */
+.demo { margin-bottom: var(--gutter); }
+.demo-intro { margin: 0 0 12px; color: var(--noir-dim); max-width: 65ch; }
+.demo-controls { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-bottom: 12px; }
+.fruit { display: flex; align-items: center; gap: 8px; font-size: .95rem; font-weight: 600; }
+.fruit-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid var(--noir-ink); box-shadow: 0 0 8px currentColor; }
+#cv-demo-wave { margin-bottom: 10px; }
+
+/* recipes */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip {
+  font: 700 .85rem/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
+  border: 2px solid var(--noir-edge); background: transparent; color: var(--noir-chalk); padding: 8px 12px; border-radius: 0;
+}
+.chip:hover { border-color: var(--noir-cyan); }
+.chip.is-active { background: var(--noir-pink); border-color: var(--noir-pink); color: var(--noir-night); box-shadow: var(--glow-pink); }
+.recipe { padding-top: 0; }
+.recipe h3 { /* goal as a caption box */
+  margin: 0 -16px 10px; padding: 10px 16px 8px; background: var(--noir-caption); color: var(--noir-caption-ink);
+  font: 400 1.05rem/1.3 var(--font-type); letter-spacing: .02em; border-bottom: 2px solid var(--noir-ink);
+}
+.recipe-want { color: var(--noir-dim); font-style: italic; }
+.recipe-meta { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--noir-violet); margin-bottom: 8px; }
+.recipe-steps { margin: 6px 0 10px; padding-left: 20px; display: grid; gap: 8px; }
+.recipe-steps li { line-height: 1.4; }
+.recipe-steps li::marker { color: var(--noir-pink); font-family: var(--font-display); }
+.recipe-steps .part-tag { display: inline-block; margin-right: 6px; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--noir-cyan); }
+.recipe-steps .why { display: block; font-size: .87rem; color: var(--noir-dim); }
+.recipe-graph { font-size: .9rem; background: var(--noir-well); border-left: 3px solid var(--noir-violet); padding: 8px 10px; }
+.part-tip { font-size: .9rem; color: var(--noir-dim); }
+
+/* tips + glossary */
+.tips { padding-left: 20px; display: grid; gap: 6px; }
+.tips li::marker { color: var(--noir-cyan); }
+.glossary { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; }
+.glossary dt { font-weight: 700; color: var(--noir-caption); }
+.glossary dd { margin: 0; color: var(--noir-dim); }
+
+.app-footer { padding-block: 40px; color: var(--noir-dim); font-size: .85rem; text-align: center; }
+
+/* ================================================================ optional extras (see HANDOFF.md) */
+/* PEAK tag floating over the spectrum: <div class="viz-wrap"><canvas id="cv-spectrum">…</canvas><span class="peak-tag" style="--peak-x:27%">PEAK <b>248 Hz</b></span></div> */
+.viz-wrap { position: relative; margin-top: 30px; }
+.peak-tag {
+  position: absolute; top: -4px; left: var(--peak-x, 50%); transform: translate(-50%, -100%); white-space: nowrap; pointer-events: none;
+  font: 400 .95rem/1.2 var(--font-display); letter-spacing: .06em; color: var(--noir-caption-ink);
+  background: var(--noir-caption); padding: 2px 8px; border: 2px solid var(--noir-ink);
+}
+.peak-tag b { font-weight: 400; }
+/* Zone legend under the spectrum: <div class="zones"><span class="zone zone-low"><b>LOW</b> <small>THOCK zone</small></span>…</div> */
+.zones { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; margin-top: 8px; }
+.zone { display: flex; align-items: baseline; gap: 6px; }
+.zone b { font: 400 1.05rem/1 var(--font-display); letter-spacing: .08em; }
+.zone small { color: var(--noir-dim); }
+.zone-low b { color: var(--noir-pink); text-shadow: 0 0 10px rgba(255,46,151,.7); }
+.zone-mid b { color: var(--noir-violet); text-shadow: 0 0 10px rgba(157,92,255,.7); }
+.zone-high b { color: var(--noir-cyan); text-shadow: 0 0 10px rgba(41,240,255,.7); }
+/* Clacky profiles get the cyan burst: set data-profile on .panel-profile from hit.profile */
+.panel-profile[data-profile="clack"] .profile-name,
+.panel-profile[data-profile="sharp-clack"] .profile-name { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20120%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Cyan%20variant%20for%20clacky%20profiles%20--%3E%0A%20%20%3Cpolygon%20points%3D%22100.0%2C2.0%20112.5%2C20.6%20135.2%2C2.8%20136.0%2C25.4%20161.1%2C16.9%20155.2%2C34.3%20174.7%2C34.5%20167.7%2C46.3%20196.5%2C49.9%20172.0%2C60.0%20201.3%2C70.6%20167.7%2C73.7%20182.3%2C88.1%20155.2%2C85.7%20155.4%2C99.1%20136.0%2C94.6%20133.5%2C114.5%20112.5%2C99.4%20100.0%2C120.9%2087.5%2C99.4%2067.5%2C112.9%2064.0%2C94.6%2044.6%2C99.1%2044.8%2C85.7%2015.1%2C89.0%2032.3%2C73.7%20-1.3%2C70.6%2028.0%2C60.0%206.4%2C50.2%2032.3%2C46.3%2025.3%2C34.5%2044.8%2C34.3%2037.0%2C15.6%2064.0%2C25.4%2064.8%2C2.8%2087.5%2C20.6%22%20fill%3D%22%2329F0FF%22%20stroke%3D%22%23000%22%20stroke-width%3D%224%22%2F%3E%0A%3C%2Fsvg%3E"); }
+/* Explainer art for the lessons/demo: <img class="learn-art" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20110%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Step%201%3A%20the%20smoothie%20(one%20mixed-up%20wave)%20--%3E%0A%20%20%3Cpath%20d%3D%22M40%208%20H160%20L148%20102%20H52%20Z%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M45%2034%20H155%20L148%20102%20H52%20Z%22%20fill%3D%22%239D5CFF%22%20fill-opacity%3D%22.3%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M54.0%2057.7%20L55.5%2056.9%20L57.0%2058.0%20L58.5%2063.5%20L60.0%2072.9%20L61.5%2082.3%20L63.0%2087.7%20L64.5%2087.3%20L66.0%2082.8%20L67.5%2078.3%20L69.0%2076.6%20L70.5%2077.5%20L72.0%2078.2%20L73.5%2076.3%20L75.0%2071.8%20L76.5%2067.5%20L78.0%2066.8%20L79.5%2070.7%20L81.0%2076.7%20L82.5%2080.5%20L84.0%2079.0%20L85.5%2072.6%20L87.0%2064.8%20L88.5%2059.2%20L90.0%2056.9%20L91.5%2056.0%20L93.0%2053.7%20L94.5%2048.8%20L96.0%2043.5%20L97.5%2041.3%20L99.0%2044.7%20L100.5%2052.4%20L102.0%2060.6%20L103.5%2065.0%20L105.0%2064.6%20L106.5%2061.5%20L108.0%2059.4%20L109.5%2060.4%20L111.0%2063.4%20L112.5%2065.7%20L114.0%2064.9%20L115.5%2062.1%20L117.0%2060.5%20L118.5%2063.4%20L120.0%2071.1%20L121.5%2080.8%20L123.0%2087.8%20L124.5%2089.5%20L126.0%2086.8%20L127.5%2082.9%20L129.0%2080.8%20L130.5%2080.8%20L132.0%2080.5%20L133.5%2077.0%20L135.0%2070.3%20L136.5%2062.9%20L138.0%2058.8%20L139.5%2060.2%20L141.0%2065.4%20L142.5%2070.3%20L144.0%2071.3%20L145.5%2067.8%22%20stroke%3D%22%23FF2E97%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E" (path from index.html) alt=""> */
+.learn-art { display: block; width: 100%; max-width: 220px; height: auto; margin: 0 auto 10px; }
+
+/* ================================================================ responsive */
+@media (max-width: 900px) {
+  .viz-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "wave" "profile" "spectrum" "spectro"; }
+  .report-body { grid-template-columns: minmax(0, 1fr); }
+  .controls { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .app-header { padding: 40px 16px 16px; }
+  .brand { padding-left: 0; padding-top: 52px; }
+  .brand::before { top: 0; transform: none; width: 46px; height: 46px; }
+  .viz-tall { height: 220px; }
+  .viz { height: 130px; }
+  .viz-small { height: 100px; }
+  .btn { font-size: 1.05rem; padding: 10px 14px; }
+  .glossary { grid-template-columns: 1fr; }
+  .glossary dd { margin-bottom: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ================================================================ app additions (built on the Neon Noir tokens) */
+/* 3-step Fourier story strip at the top of the smoothie demo */
+.learn-strip { list-style: none; margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gutter); counter-reset: none; }
+.learn-strip li { display: flex; flex-direction: column; gap: 6px; background: var(--noir-card); border: 2px solid var(--noir-edge); box-shadow: 4px 4px 0 var(--noir-ink); padding: 12px; font-size: .92rem; }
+.learn-strip b { font-family: var(--font-display); font-weight: 400; color: var(--noir-caption); letter-spacing: .04em; }
+.learn-strip .learn-art { margin-bottom: 4px; }
+@media (max-width: 700px) { .learn-strip { grid-template-columns: minmax(0, 1fr); } .learn-strip .learn-art { max-width: 180px; } }
 
 </style>
 </head>
@@ -192,7 +399,15 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
 
     <article class="panel panel-spectrum">
       <h2 class="panel-title" data-text="ui.spectrum"></h2>
-      <canvas id="cv-spectrum" class="viz viz-tall" aria-label="Frequency spectrum"></canvas>
+      <div class="viz-wrap">
+        <canvas id="cv-spectrum" class="viz viz-tall" aria-label="Frequency spectrum"></canvas>
+        <span id="peak-tag" class="peak-tag" hidden>PEAK <b id="peak-hz"></b></span>
+      </div>
+      <div class="zones" aria-hidden="true">
+        <span class="zone zone-low"><b>LOW</b> <small>THOCK zone</small></span>
+        <span class="zone zone-mid"><b>MID</b> <small>Body zone</small></span>
+        <span class="zone zone-high"><b>HIGH</b> <small>CLACK zone</small></span>
+      </div>
       <p class="panel-note" data-lesson="spectrum"></p>
     </article>
 
@@ -251,6 +466,11 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
     <h2 id="learn-title" class="section-title">How it works</h2>
     <div class="demo panel" aria-labelledby="demo-title">
       <h3 id="demo-title" class="panel-title" data-text="ui.demo"></h3>
+      <ol class="learn-strip">
+        <li><img class="learn-art" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20110%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Step%201%3A%20the%20smoothie%20(one%20mixed-up%20wave)%20--%3E%0A%20%20%3Cpath%20d%3D%22M40%208%20H160%20L148%20102%20H52%20Z%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M45%2034%20H155%20L148%20102%20H52%20Z%22%20fill%3D%22%239D5CFF%22%20fill-opacity%3D%22.3%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M54.0%2057.7%20L55.5%2056.9%20L57.0%2058.0%20L58.5%2063.5%20L60.0%2072.9%20L61.5%2082.3%20L63.0%2087.7%20L64.5%2087.3%20L66.0%2082.8%20L67.5%2078.3%20L69.0%2076.6%20L70.5%2077.5%20L72.0%2078.2%20L73.5%2076.3%20L75.0%2071.8%20L76.5%2067.5%20L78.0%2066.8%20L79.5%2070.7%20L81.0%2076.7%20L82.5%2080.5%20L84.0%2079.0%20L85.5%2072.6%20L87.0%2064.8%20L88.5%2059.2%20L90.0%2056.9%20L91.5%2056.0%20L93.0%2053.7%20L94.5%2048.8%20L96.0%2043.5%20L97.5%2041.3%20L99.0%2044.7%20L100.5%2052.4%20L102.0%2060.6%20L103.5%2065.0%20L105.0%2064.6%20L106.5%2061.5%20L108.0%2059.4%20L109.5%2060.4%20L111.0%2063.4%20L112.5%2065.7%20L114.0%2064.9%20L115.5%2062.1%20L117.0%2060.5%20L118.5%2063.4%20L120.0%2071.1%20L121.5%2080.8%20L123.0%2087.8%20L124.5%2089.5%20L126.0%2086.8%20L127.5%2082.9%20L129.0%2080.8%20L130.5%2080.8%20L132.0%2080.5%20L133.5%2077.0%20L135.0%2070.3%20L136.5%2062.9%20L138.0%2058.8%20L139.5%2060.2%20L141.0%2065.4%20L142.5%2070.3%20L144.0%2071.3%20L145.5%2067.8%22%20stroke%3D%22%23FF2E97%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E" alt=""><span><b>1.</b> A key press is a smoothie: many pitches blended into one messy wave.</span></li>
+        <li><img class="learn-art" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20110%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Step%202%3A%20the%20un-blender%20pulls%20out%20pure%20pitches%20--%3E%0A%20%20%3Cpath%20d%3D%22M52%206%20H148%20L138%2084%20H62%20Z%22%20fill%3D%22%2329F0FF%22%20fill-opacity%3D%22.06%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Crect%20x%3D%2256%22%20y%3D%2284%22%20width%3D%2288%22%20height%3D%2220%22%20rx%3D%223%22%20fill%3D%22%2322283F%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M62.0%2024.0%20L64.0%2026.0%20L66.0%2027.9%20L68.0%2029.6%20L70.0%2031.0%20L72.0%2032.1%20L74.0%2032.7%20L76.0%2033.0%20L78.0%2032.8%20L80.0%2032.2%20L82.0%2031.2%20L84.0%2029.8%20L86.0%2028.1%20L88.0%2026.3%20L90.0%2024.3%20L92.0%2022.3%20L94.0%2020.4%20L96.0%2018.7%20L98.0%2017.2%20L100.0%2016.1%20L102.0%2015.3%20L104.0%2015.0%20L106.0%2015.1%20L108.0%2015.7%20L110.0%2016.7%20L112.0%2018.0%20L114.0%2019.6%20L116.0%2021.5%20L118.0%2023.5%20L120.0%2025.4%20L122.0%2027.4%20L124.0%2029.1%20L126.0%2030.6%20L128.0%2031.8%20L130.0%2032.6%20L132.0%2033.0%20L134.0%2032.9%20L136.0%2032.4%20L138.0%2031.5%22%20stroke%3D%22%23FF2E97%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M64.0%2046.0%20L65.0%2047.9%20L66.0%2049.7%20L67.0%2051.2%20L68.0%2052.3%20L69.0%2052.9%20L70.0%2053.0%20L71.0%2052.5%20L72.0%2051.6%20L73.0%2050.2%20L74.0%2048.5%20L75.0%2046.6%20L76.0%2044.7%20L77.0%2042.8%20L78.0%2041.2%20L79.0%2040.0%20L80.0%2039.2%20L81.0%2039.0%20L82.0%2039.3%20L83.0%2040.1%20L84.0%2041.3%20L85.0%2043.0%20L86.0%2044.8%20L87.0%2046.7%20L88.0%2048.6%20L89.0%2050.3%20L90.0%2051.6%20L91.0%2052.6%20L92.0%2053.0%20L93.0%2052.9%20L94.0%2052.2%20L95.0%2051.1%20L96.0%2049.6%20L97.0%2047.8%20L98.0%2045.9%20L99.0%2043.9%20L100.0%2042.2%20L101.0%2040.7%20L102.0%2039.7%20L103.0%2039.1%20L104.0%2039.0%20L105.0%2039.5%20L106.0%2040.5%20L107.0%2041.9%20L108.0%2043.6%20L109.0%2045.5%20L110.0%2047.5%20L111.0%2049.3%20L112.0%2050.9%20L113.0%2052.1%20L114.0%2052.8%20L115.0%2053.0%20L116.0%2052.7%20L117.0%2051.8%20L118.0%2050.6%20L119.0%2048.9%20L120.0%2047.1%20L121.0%2045.1%20L122.0%2043.3%20L123.0%2041.6%20L124.0%2040.3%20L125.0%2039.4%20L126.0%2039.0%20L127.0%2039.2%20L128.0%2039.9%20L129.0%2041.0%20L130.0%2042.5%20L131.0%2044.3%20L132.0%2046.3%20L133.0%2048.2%20L134.0%2049.9%20L135.0%2051.4%20L136.0%2052.4%22%20stroke%3D%22%239D5CFF%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M67.0%2066.0%20L67.8%2068.4%20L68.5%2070.2%20L69.3%2071.0%20L70.0%2070.5%20L70.8%2069.0%20L71.5%2066.7%20L72.3%2064.2%20L73.0%2062.2%20L73.8%2061.1%20L74.5%2061.2%20L75.3%2062.5%20L76.0%2064.6%20L76.8%2067.1%20L77.5%2069.3%20L78.3%2070.7%20L79.0%2070.9%20L79.8%2070.0%20L80.5%2068.1%20L81.3%2065.6%20L82.0%2063.3%20L82.8%2061.6%20L83.5%2061.0%20L84.3%2061.6%20L85.0%2063.3%20L85.8%2065.7%20L86.5%2068.1%20L87.3%2070.0%20L88.0%2071.0%20L88.8%2070.7%20L89.5%2069.3%20L90.3%2067.0%20L91.0%2064.6%20L91.8%2062.4%20L92.5%2061.2%20L93.3%2061.1%20L94.0%2062.2%20L94.8%2064.3%20L95.5%2066.7%20L96.3%2069.0%20L97.0%2070.6%20L97.8%2071.0%20L98.5%2070.2%20L99.3%2068.4%20L100.0%2066.0%20L100.8%2063.6%20L101.5%2061.8%20L102.3%2061.0%20L103.0%2061.5%20L103.8%2063.0%20L104.5%2065.3%20L105.3%2067.8%20L106.0%2069.8%20L106.8%2070.9%20L107.5%2070.8%20L108.3%2069.5%20L109.0%2067.4%20L109.8%2064.9%20L110.5%2062.7%20L111.3%2061.3%20L112.0%2061.1%20L112.8%2062.0%20L113.5%2064.0%20L114.3%2066.4%20L115.0%2068.8%20L115.8%2070.4%20L116.5%2071.0%20L117.3%2070.4%20L118.0%2068.6%20L118.8%2066.3%20L119.5%2063.9%20L120.3%2062.0%20L121.0%2061.0%20L121.8%2061.3%20L122.5%2062.8%20L123.3%2065.0%20L124.0%2067.5%20L124.8%2069.6%20L125.5%2070.8%20L126.3%2070.9%20L127.0%2069.7%20L127.8%2067.7%20L128.5%2065.2%20L129.3%2062.9%20L130.0%2061.4%20L130.8%2061.0%20L131.5%2061.8%20L132.3%2063.7%20L133.0%2066.1%22%20stroke%3D%22%2329F0FF%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E" alt=""><span><b>2.</b> The Fourier transform un-blends it, testing every pitch: "how much of you is in here?"</span></li>
+        <li><img class="learn-art" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20110%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%3E%0A%20%20%3C!--%20Step%203%3A%20the%20fruit%20list%20%3D%20the%20spectrum%20(strawberry%20low%2C%20banana%20mid%2C%20blueberry%20high%2C%20matching%20the%20app%20demo)%20--%3E%0A%20%20%3Crect%20x%3D%2226%22%20y%3D%2240%22%20width%3D%2240%22%20height%3D%2256%22%20fill%3D%22%23FF2E97%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Crect%20x%3D%2280%22%20y%3D%2262%22%20width%3D%2240%22%20height%3D%2234%22%20fill%3D%22%239D5CFF%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Crect%20x%3D%22134%22%20y%3D%2276%22%20width%3D%2240%22%20height%3D%2220%22%20fill%3D%22%2329F0FF%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M34%2014%20Q46%206%2058%2014%20Q56%2028%2046%2034%20Q36%2028%2034%2014%20Z%22%20fill%3D%22%23FF2E97%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M84%2056%20Q88%2034%20108%2032%20Q104%2038%20105%2044%20Q104%2056%2088%2060%20Z%22%20fill%3D%22%23F3D36B%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22154%22%20cy%3D%2266%22%20r%3D%228%22%20fill%3D%22%2329F0FF%22%20stroke%3D%22%23000%22%20stroke-width%3D%223%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M18%2096%20H184%22%20stroke%3D%22%238E93B4%22%20stroke-width%3D%223%22%2F%3E%0A%3C%2Fsvg%3E" alt=""><span><b>3.</b> Out comes the fruit list: how loud each pitch is. That's the spectrum!</span></li>
+      </ol>
       <p class="demo-intro">Turn the fruits up and down. The top shows the blended smoothie (the wave you'd hear). The bottom shows what the Fourier transform finds inside it.</p>
       <div id="demo-controls" class="demo-controls"></div>
       <canvas id="cv-demo-wave" class="viz viz-small" aria-label="Blended wave"></canvas>
@@ -1386,6 +1606,9 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
       hit: v('--c-hit'), fruits: [v('--c-fruit-1'), v('--c-fruit-2'), v('--c-fruit-3')],
       spec: [v('--spec-0'), v('--spec-1'), v('--spec-2'), v('--spec-3'), v('--spec-4')],
       font: v('--font') || 'sans-serif',
+      // optional per-zone bar colors + neon glow (fall back to the single bar color / no glow)
+      barLow: v('--c-bar-low'), barMid: v('--c-bar-mid'), barHigh: v('--c-bar-high'),
+      glow: parseFloat(v('--c-glow')) || 0,
     };
     buildSpecLUT();
   }
@@ -1441,15 +1664,20 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
     const y = (db) => 18 + (1 - Math.max(0, Math.min(1, (db - bottom) / (top - bottom)))) * (h - 34);
     drawFreqBackdrop(c, opts.labels !== false);
     if (barsDb) {
-      ctx.fillStyle = col.bar;
+      const zoneColor = (f) => (f < E.BANDS[0].to ? col.barLow : f < E.BANDS[1].to ? col.barMid : col.barHigh) || col.bar;
       const n = hz.length, bw = w / n;
+      ctx.save();
+      ctx.shadowBlur = col.glow;
       for (let i = 0; i < n; i++) {
         const x = xOfHz(hz[i], w) - bw / 2, yy = y(barsDb[i]);
+        ctx.fillStyle = ctx.shadowColor = zoneColor(hz[i]);
         ctx.fillRect(x + 0.5, yy, Math.max(1, bw - 1.5), h - 16 - yy);
       }
+      ctx.restore();
     }
     const line = (arr, color, dash, width) => {
       ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.lineJoin = 'round';
+      ctx.shadowColor = color; ctx.shadowBlur = col.glow * 0.7;
       ctx.beginPath();
       for (let i = 0; i < hz.length; i++) { const x = xOfHz(hz[i], w), yy = y(arr[i]); i ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
       ctx.stroke(); ctx.restore();
@@ -1473,14 +1701,16 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
     if (!data) return;
     let gain = opts.gain || 1;
     if (opts.autoGain) { let m = 0; for (const v of data) m = Math.max(m, Math.abs(v)); gain = m > 1e-4 ? 0.9 / m : 1; }
-    ctx.strokeStyle = color || col.wave; ctx.lineWidth = opts.width || 2; ctx.globalAlpha = opts.alpha || 1;
+    ctx.save();
+    ctx.strokeStyle = ctx.shadowColor = color || col.wave; ctx.shadowBlur = opts.alpha ? 0 : col.glow * 0.6;
+    ctx.lineWidth = opts.width || 2; ctx.globalAlpha = opts.alpha || 1;
     ctx.beginPath();
     const n = data.length, step = Math.max(1, Math.floor(n / (w * 2)));
     for (let i = 0, j = 0; i < n; i += step, j++) {
       const x = (i / (n - 1)) * w, yy = h / 2 - data[i] * gain * (h / 2 - 4);
       j ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy);
     }
-    ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.stroke(); ctx.restore();
   }
 
   // ------------------------------------------------------------ spectrogram
@@ -1538,11 +1768,23 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
   }
 
   // ------------------------------------------------------------ profile card
+  /** Floating "PEAK 248 Hz" tag over the spectrum (hidden when there's no peak). */
+  function showPeak(hz) {
+    const tag = $('#peak-tag'); if (!tag) return;
+    if (!hz) { tag.hidden = true; return; }
+    // keep the tag fully inside the chart near the edges
+    const pct = Math.max(8, Math.min(92, ((Math.log(hz) - LMIN) / (LMAX - LMIN)) * 100));
+    tag.style.setProperty('--peak-x', pct + '%');
+    $('#peak-hz').textContent = Math.round(hz) + ' Hz';
+    tag.hidden = false;
+  }
   function profileText(id) { return C.profiles[id] || { name: '—', text: '' }; }
   function showProfile(f, live) {
     const p = profileText(f.profile);
     $('#prof-name').textContent = p.name;
     $('#prof-desc').textContent = p.soundsLike ? `Sounds like ${p.soundsLike}.` : '';
+    $('.panel-profile').dataset.profile = f.profile;   // lets the theme swap the burst for clacky sounds
+    showPeak(f.peakHz);
     const needle = $('#meter-needle');
     needle.style.left = f.thockScore + '%';
     needle.classList.toggle('is-live', !!live);
@@ -1717,6 +1959,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(-
     renderReport(null); clearSpectrogram();
     $('#prof-name').textContent = '—'; $('#prof-desc').textContent = C.ui.micHint;
     $('#meter-needle').classList.remove('is-live');
+    showPeak(0); delete $('.panel-profile').dataset.profile;
   });
   $('#btn-pin').addEventListener('click', pinCurrent);
   $('#btn-unpin').addEventListener('click', unpin);

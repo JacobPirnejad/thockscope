@@ -37,7 +37,15 @@
 
     <article class="panel panel-spectrum">
       <h2 class="panel-title" data-text="ui.spectrum"></h2>
-      <canvas id="cv-spectrum" class="viz viz-tall" aria-label="Frequency spectrum"></canvas>
+      <div class="viz-wrap">
+        <canvas id="cv-spectrum" class="viz viz-tall" aria-label="Frequency spectrum"></canvas>
+        <span id="peak-tag" class="peak-tag" hidden>PEAK <b id="peak-hz"></b></span>
+      </div>
+      <div class="zones" aria-hidden="true">
+        <span class="zone zone-low"><b>LOW</b> <small>THOCK zone</small></span>
+        <span class="zone zone-mid"><b>MID</b> <small>Body zone</small></span>
+        <span class="zone zone-high"><b>HIGH</b> <small>CLACK zone</small></span>
+      </div>
       <p class="panel-note" data-lesson="spectrum"></p>
     </article>
 
@@ -96,6 +104,11 @@
     <h2 id="learn-title" class="section-title">How it works</h2>
     <div class="demo panel" aria-labelledby="demo-title">
       <h3 id="demo-title" class="panel-title" data-text="ui.demo"></h3>
+      <ol class="learn-strip">
+        <li><img class="learn-art" src="css/assets/learn-smoothie.svg" alt=""><span><b>1.</b> A key press is a smoothie: many pitches blended into one messy wave.</span></li>
+        <li><img class="learn-art" src="css/assets/learn-unblend.svg" alt=""><span><b>2.</b> The Fourier transform un-blends it, testing every pitch: "how much of you is in here?"</span></li>
+        <li><img class="learn-art" src="css/assets/learn-fruit-list.svg" alt=""><span><b>3.</b> Out comes the fruit list: how loud each pitch is. That's the spectrum!</span></li>
+      </ol>
       <p class="demo-intro">Turn the fruits up and down. The top shows the blended smoothie (the wave you'd hear). The bottom shows what the Fourier transform finds inside it.</p>
       <div id="demo-controls" class="demo-controls"></div>
       <canvas id="cv-demo-wave" class="viz viz-small" aria-label="Blended wave"></canvas>
